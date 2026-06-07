@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1920, height=1080, initial-scale=1" />
+  <title>Wallboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:," />
+</head>
+<body>
+  <!-- Night-dim wrapper: app.js toggles .night to apply CSS brightness -->
+  <div id="screen">
+
+    <!-- ============================= HEADER ============================= -->
+    <header id="header">
+      <div class="clock-block">
+        <div id="clock" class="clock tnum">--:--</div>
+        <div id="date" class="date">—</div>
+      </div>
+
+      <div class="weather-block">
+        <div class="weather-now">
+          <div id="wx-icon" class="wx-icon" aria-hidden="true"></div>
+          <div class="wx-now-text">
+            <div id="wx-temp" class="wx-temp tnum">--°</div>
+            <div id="wx-cond" class="wx-cond">—</div>
+            <div id="wx-hilo" class="wx-hilo tnum">H --° &nbsp; L --°</div>
+          </div>
+        </div>
+        <div id="wx-forecast" class="wx-forecast">
+          <!-- up to 3 day chips injected by JS -->
+        </div>
+      </div>
+    </header>
+
+    <!-- ============================== MAIN ============================== -->
+    <main id="main">
+
+      <!-- ---------- COLUMN 1: ENERGY (largest) ---------- -->
+      <section class="col col-energy">
+        <div class="card card-flow">
+          <div class="card-title">Energy
+            <span id="sigen-badge" class="badge badge-warn">awaiting Sigen</span>
+          </div>
+
+          <!-- Animated solar -> home -> battery / grid flow -->
+          <svg id="flow" class="flow-svg" viewBox="0 0 600 360" preserveAspectRatio="xMidYMid meet">
+            <!-- connection base lines -->
+            <line class="flow-base" x1="300" y1="96"  x2="300" y2="158"/>   <!-- solar->home -->
+            <line class="flow-base" x1="152" y1="210" x2="248" y2="210"/>   <!-- grid<->home -->
+            <line class="flow-base" x1="352" y1="210" x2="448" y2="210"/>   <!-- battery<->home -->
+
+            <!-- animated flow overlays (classes set by JS) -->
+            <line id="flow-solar" class="flow-line" x1="300" y1="96"  x2="300" y2="158"/>
+            <line id="flow-grid"  class="flow-line" x1="152" y1="210" x2="248" y2="210"/>
+            <line id="flow-batt"  class="flow-line" x1="352" y1="210" x2="448" y2="210"/>
+
+            <!-- SOLAR node -->
+            <g class="node" transform="translate(300,52)">
+              <circle class="node-bg" r="42"/>
+              <text class="node-label" y="-12">SOLAR</text>
+              <text id="solar-val" class="node-val tnum" y="14">—</text>
+            </g>
+
+            <!-- HOME node -->
+            <g class="node" transform="translate(300,210)">
+              <circle class="node-bg node-home" r="46"/>
+              <text class="node-label" y="-14">HOME</text>
+              <text id="home-val" class="node-val tnum" y="14">—</text>
+            </g>
+
+            <!-- GRID node -->
+            <g class="node" transform="translate(90,210)">
+              <circle class="node-bg" r="42"/>
+              <text class="node-label" y="-12">GRID</text>
+              <text id="grid-val" class="node-val tnum" y="14">—</text>
+            </g>
+
+            <!-- BATTERY node + SOC ring -->
+            <g class="node" transform="translate(510,210)">
+              <circle class="ring-track" r="42"/>
+              <circle id="batt-ring" class="ring-prog" r="42"
+                      transform="rotate(-90)" pathLength="100"
+                      stroke-dasharray="0 100"/>
+              <text class="node-label" y="-12">BATTERY</text>
+              <text id="batt-val" class="node-val tnum" y="14">—</text>
+            </g>
+          </svg>
+        </div>
+
+        <!-- EV charger mini-panel -->
+        <div class="card card-ev">
+          <div class="card-title">EV Charger
+            <span id="ev-status" class="badge">—</span>
+          </div>
+          <div class="ev-body">
+            <!-- semicircle power gauge -->
+            <svg class="gauge" viewBox="0 0 200 120" preserveAspectRatio="xMidYMid meet">
+              <path class="gauge-track" d="M20 110 A80 80 0 0 1 180 110"/>
+              <path id="ev-gauge" class="gauge-prog" d="M20 110 A80 80 0 0 1 180 110"
+                    pathLength="100" stroke-dasharray="0 100"/>
+              <text id="ev-power" class="gauge-val tnum" x="100" y="96">— kW</text>
+            </svg>
+            <div class="ev-stats">
+              <div class="stat"><span class="stat-lbl">Vehicle</span><span id="ev-veh" class="stat-val tnum">—</span></div>
+              <div class="stat"><span class="stat-lbl">Today</span><span id="ev-kwh" class="stat-val tnum">—</span></div>
+              <div class="stat"><span class="stat-lbl">Off-peak £ today</span><span id="ev-cost-today" class="stat-val tnum">—</span></div>
+              <div class="stat"><span class="stat-lbl">Week / Month</span><span id="ev-cost-wm" class="stat-val tnum">—</span></div>
+              <div class="stat stat-sub"><span class="stat-lbl">Mode</span><span id="ev-mode" class="stat-val">—</span></div>
+              <div class="stat stat-sub"><span class="stat-lbl">Rate now</span><span id="ev-rate" class="stat-val tnum">—</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- COLUMN 2: CLIMATE & ROOMS ---------- -->
+      <section class="col col-climate">
+        <div class="card card-hp">
+          <div class="card-title">Heat Pump
+            <span id="hp-mode" class="badge">—</span>
+          </div>
+          <div class="hp-grid">
+            <div class="big-stat"><span id="hp-target" class="big-val tnum">—</span><span class="big-lbl">target °C</span></div>
+            <div class="big-stat"><span id="hp-flow" class="big-val tnum">—</span><span class="big-lbl">flow °C</span></div>
+            <div class="big-stat"><span id="hp-dhw" class="big-val tnum">—</span><span class="big-lbl">hot water °C</span></div>
+            <div class="big-stat"><span id="hp-outdoor" class="big-val tnum">—</span><span class="big-lbl">outdoor °C</span></div>
+            <div class="big-stat"><span id="hp-power" class="big-val tnum">—</span><span class="big-lbl">power</span></div>
+          </div>
+        </div>
+        <div class="card card-rooms">
+          <div class="card-title">Rooms</div>
+          <div id="rooms-grid" class="rooms-grid">
+            <div class="room-empty">Discovering room sensors…</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- COLUMN 3: SERVER HEALTH ---------- -->
+      <section class="col col-server">
+        <div class="card card-server">
+          <div class="card-title">Server
+            <span id="server-badge" class="badge">—</span>
+          </div>
+          <div class="server-stats">
+            <div class="stat"><span class="stat-lbl">CPU temp</span><span id="srv-cpu" class="stat-val tnum">—</span></div>
+            <div class="stat"><span class="stat-lbl">Containers up</span><span id="srv-containers" class="stat-val tnum">—</span></div>
+            <div class="stat"><span class="stat-lbl">Disk free /</span><span id="srv-disk" class="stat-val tnum">—</span></div>
+            <div class="stat"><span class="stat-lbl">UPS / battery</span><span id="srv-batt" class="stat-val tnum">—</span></div>
+            <div class="stat"><span class="stat-lbl">Last backup</span><span id="srv-backup" class="stat-val">—</span></div>
+          </div>
+        </div>
+        <div class="card card-containers">
+          <div class="card-title">Containers</div>
+          <div id="containers-grid" class="containers-grid">
+            <!-- dots injected by JS -->
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ============================= FOOTER ============================= -->
+    <footer id="footer">
+      <span id="updated" class="updated">last update —</span>
+      <span id="live" class="live"><span class="dot"></span><span id="live-text">connecting…</span></span>
+    </footer>
+
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

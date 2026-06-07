@@ -1,0 +1,9 @@
+# Never commit secrets
+stack/.env
+.env
+*.token
+
+# OS / editor noise
+.DS_Store
+*.swp
+Thumbs.db
