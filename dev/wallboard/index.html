@@ -135,25 +135,14 @@
         </div>
       </section>
 
-      <!-- ---------- COLUMN 3: SERVER HEALTH ---------- -->
-      <section class="col col-server">
-        <div class="card card-server">
-          <div class="card-title">Server
-            <span id="server-badge" class="badge">—</span>
+      <!-- ---------- COLUMN 3: RUNNING BUDGET ---------- -->
+      <section class="col col-budget">
+        <div class="card card-budget">
+          <div class="card-title">Running Budget
+            <span id="budget-note" class="badge">today · month · YTD</span>
           </div>
-          <div class="server-stats">
-            <div class="stat"><span class="stat-lbl">CPU temp</span><span id="srv-cpu" class="stat-val tnum">—</span></div>
-            <div class="stat"><span class="stat-lbl">Containers up</span><span id="srv-containers" class="stat-val tnum">—</span></div>
-            <div class="stat"><span class="stat-lbl">Disk free /</span><span id="srv-disk" class="stat-val tnum">—</span></div>
-            <div class="stat"><span class="stat-lbl">UPS / battery</span><span id="srv-batt" class="stat-val tnum">—</span></div>
-            <div class="stat"><span class="stat-lbl">Last backup</span><span id="srv-backup" class="stat-val">—</span></div>
-          </div>
-        </div>
-        <div class="card card-containers">
-          <div class="card-title">Containers</div>
-          <div id="containers-grid" class="containers-grid">
-            <!-- dots injected by JS -->
-          </div>
+          <!-- period x metric table, rebuilt each tick (text only, no animation) -->
+          <div id="budget-grid" class="budget-grid"></div>
         </div>
       </section>
 

@@ -178,20 +178,30 @@ html, body {
 .room .r-hum  { font-size: 18px; color: var(--fg-mute); }
 .room-empty { color: var(--fg-mute); font-size: 18px; padding: 20px; }
 
-/* ---- Server column ---- */
-.card-server { flex: none; }
-.server-stats .stat { padding: 9px 0; }
-.server-stats .stat-val { font-size: 26px; }
+/* ---- Running Budget column ---- */
+.card-budget { flex: 1; }
+.budget-grid { flex: 1; display: flex; }
+.budget-table { width: 100%; border-collapse: collapse; }
+.budget-table th, .budget-table td { text-align: right; padding: 10px 6px; }
+.budget-table thead th { font-size: 16px; color: var(--fg-dim); text-transform: uppercase;
+                         letter-spacing: .5px; border-bottom: 1px solid var(--line); }
+.budget-table thead th:first-child { text-align: left; }
+.budget-table tbody th { text-align: left; font-size: 19px; font-weight: 600; color: var(--fg-dim); }
+.budget-table td { vertical-align: baseline; }
+.b-money { font-size: 27px; font-weight: 700; font-variant-numeric: tabular-nums; display: block; line-height: 1.05; }
+.b-sub   { font-size: 14px; color: var(--fg-mute); display: block; }
+.b-money.spend  { color: var(--fg); }
+.b-money.income { color: var(--teal); }
+.b-money.solar  { color: var(--yellow); }
 
-.card-containers { flex: 1; }
-.containers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-content: start; }
-.cont { display: flex; align-items: center; gap: 12px; background: var(--bg-card-2);
-        border-radius: 12px; padding: 12px 16px; }
-.cont .c-dot { width: 16px; height: 16px; border-radius: 50%; flex: none;
-               background: var(--fg-mute); box-shadow: 0 0 0 0 transparent; }
-.cont .c-dot.up   { background: var(--green); box-shadow: 0 0 12px rgba(52,211,153,.5); }
-.cont .c-dot.down { background: var(--red);   box-shadow: 0 0 12px rgba(248,113,113,.5); }
-.cont .c-name { font-size: 20px; font-weight: 600; }
+/* Net total rows: heavier, with a divider; income (credit) goes green */
+.budget-table tfoot tr:first-child th,
+.budget-table tfoot tr:first-child td { border-top: 2px solid var(--line); padding-top: 16px; }
+.b-net th { font-size: 20px; font-weight: 700; color: var(--fg); }
+.b-net th small { display: block; font-size: 13px; font-weight: 500; color: var(--fg-mute); text-transform: uppercase; letter-spacing: .5px; }
+.b-net .b-money { font-size: 30px; }
+.b-net .b-money.spend  { color: var(--amber); }
+.b-net .b-money.income { color: var(--green); }
 
 /* "Awaiting" / unavailable visual state for whole nodes */
 .dim { opacity: .35; }
