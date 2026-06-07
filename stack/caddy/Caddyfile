@@ -1,0 +1,38 @@
+# =============================================================================
+#  Caddyfile — wallboard block
+# -----------------------------------------------------------------------------
+#  ADD THIS BLOCK to your existing stack/caddy/Caddyfile (mirrored to
+#  ~/stack on macserver). It is shown here standalone for reference.
+#
+#  What it does:
+#   - Serves the static wallboard from /srv/wallboard.
+#   - Proxies /api/* to the Home Assistant container on the shared `web` network,
+#     injecting the long-lived token server-side so the browser never sees it.
+#
+#  Requirements:
+#   - caddy container is on the `web` Docker network (can reach homeassistant:8123).
+#   - HA_TOKEN is passed into the caddy container env (see docker-compose.yml).
+#   - Pi-hole resolves wallboard.home -> 192.168.1.190 (add the DNS record).
+#   - Bind-mount ~/dev/wallboard -> /srv/wallboard:ro on the caddy service.
+# =============================================================================
+
+http://wallboard.home {
+	# Proxied Home Assistant REST API — token added here, never in the browser.
+	handle /api/* {
+		reverse_proxy http://homeassistant:8123 {
+			header_up Authorization "Bearer {env.HA_TOKEN}"
+		}
+	}
+
+	# Static dashboard
+	handle {
+		root * /srv/wallboard
+		file_server
+	}
+
+	encode gzip
+	log {
+		output stdout
+		level WARN
+	}
+}

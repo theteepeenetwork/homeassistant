@@ -1,0 +1,37 @@
+# =============================================================================
+#  docker-compose.yml — caddy service (wallboard wiring, reference snippet)
+# -----------------------------------------------------------------------------
+#  This shows ONLY the caddy service with the bits the wallboard needs:
+#    - HA_TOKEN passed into the container environment (from stack/.env)
+#    - the ~/dev/wallboard bind-mount at /srv/wallboard:ro
+#  Merge these two additions (environment + the wallboard volume line) into the
+#  caddy service in your real stack/docker-compose.yml. DO NOT commit stack/.env.
+# =============================================================================
+
+services:
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    restart: unless-stopped
+    networks:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Long-lived HA token, read from stack/.env (HA_TOKEN=...). Never hard-code.
+      - HA_TOKEN=${HA_TOKEN}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      # >>> wallboard: serve the static site (bind-mount the dev dir read-only) <<<
+      - ${HOME}/dev/wallboard:/srv/wallboard:ro
+
+networks:
+  web:
+    external: true
+
+volumes:
+  caddy_data:
+  caddy_config:
