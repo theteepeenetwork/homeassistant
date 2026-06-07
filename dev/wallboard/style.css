@@ -182,26 +182,36 @@ html, body {
 .card-budget { flex: 1; }
 .budget-grid { flex: 1; display: flex; }
 .budget-table { width: 100%; border-collapse: collapse; }
-.budget-table th, .budget-table td { text-align: right; padding: 10px 6px; }
+.budget-table th, .budget-table td { text-align: right; padding: 6px 6px; }
 .budget-table thead th { font-size: 16px; color: var(--fg-dim); text-transform: uppercase;
                          letter-spacing: .5px; border-bottom: 1px solid var(--line); }
 .budget-table thead th:first-child { text-align: left; }
-.budget-table tbody th { text-align: left; font-size: 19px; font-weight: 600; color: var(--fg-dim); }
+.budget-table tbody th { text-align: left; font-size: 18px; font-weight: 600; color: var(--fg-dim); }
 .budget-table td { vertical-align: baseline; }
-.b-money { font-size: 27px; font-weight: 700; font-variant-numeric: tabular-nums; display: block; line-height: 1.05; }
-.b-sub   { font-size: 14px; color: var(--fg-mute); display: block; }
+
+/* Section header rows (Cost / Generation / Used by house) */
+.b-grp th { text-align: left; font-size: 13px; font-weight: 700; color: var(--fg-mute);
+            text-transform: uppercase; letter-spacing: 1px; padding: 14px 6px 4px; }
+.budget-table tbody:first-of-type .b-grp th { padding-top: 4px; }
+
+.b-money { font-size: 23px; font-weight: 700; font-variant-numeric: tabular-nums; display: block; line-height: 1.05; }
+.b-sub   { font-size: 13px; color: var(--fg-mute); display: block; }
 .b-money.spend  { color: var(--fg); }
 .b-money.income { color: var(--teal); }
 .b-money.solar  { color: var(--yellow); }
+.b-money.grid   { color: var(--fg); }
+.b-money.batt   { color: var(--accent); }
+.b-money.total  { color: var(--fg); font-weight: 800; }
+.budget-table th.b-strong { font-weight: 800; color: var(--fg); }
 
-/* Net total rows: heavier, with a divider; income (credit) goes green */
+/* Net total rows (tfoot): heavier, divider above; credit green, spend amber */
 .budget-table tfoot tr:first-child th,
-.budget-table tfoot tr:first-child td { border-top: 2px solid var(--line); padding-top: 16px; }
-.b-net th { font-size: 20px; font-weight: 700; color: var(--fg); }
-.b-net th small { display: block; font-size: 13px; font-weight: 500; color: var(--fg-mute); text-transform: uppercase; letter-spacing: .5px; }
-.b-net .b-money { font-size: 30px; }
-.b-net .b-money.spend  { color: var(--amber); }
-.b-net .b-money.income { color: var(--green); }
+.budget-table tfoot tr:first-child td { border-top: 2px solid var(--line); padding-top: 14px; }
+.b-net-th { font-size: 20px !important; font-weight: 700 !important; color: var(--fg) !important; }
+.b-net-th small { display: block; font-size: 12px; font-weight: 500; color: var(--fg-mute); text-transform: uppercase; letter-spacing: .5px; }
+.budget-table tfoot .b-money { font-size: 28px; }
+.budget-table tfoot .b-money.spend  { color: var(--amber); }
+.budget-table tfoot .b-money.income { color: var(--green); }
 
 /* "Awaiting" / unavailable visual state for whole nodes */
 .dim { opacity: .35; }

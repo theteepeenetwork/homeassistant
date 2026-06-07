@@ -217,5 +217,41 @@ export const ENTITIES = {
         ytd:   { entity: null },
       },
     },
+
+    // ---- House consumption split by SOURCE (kWh) ----------------------------
+    //  "What we used to POWER THE HOUSE", split by where it came from.
+    //  IMPORTANT: this is house LOAD only — it EXCLUDES energy used to charge
+    //  the battery (and the EV). So "from grid" is the grid->house portion, NOT
+    //  the meter import (which also includes battery/EV charging). That split
+    //  can only come from Sigen's flow/energy sensors, so these are PENDING
+    //  until Modbus opens — they show "—" until wired.
+    //   * grid    — Sigen grid->load energy (NOT the Octopus import meter).
+    //   * battery — Sigen battery discharge->load energy.
+    //   * solar   — Sigen solar self-consumption->load energy.
+    //   * total   — optional Sigen house-load energy sensor. If null, it's
+    //               computed as grid + battery + solar, but only when ALL three
+    //               are present (otherwise "—", to avoid a false total).
+    consumption: {
+      grid: {
+        today: { entity: null }, // Sigen grid->load energy (daily). NOT meter import.
+        month: { entity: null }, // utility_meter (monthly) on the above
+        ytd:   { entity: null }, // utility_meter (yearly)  on the above
+      },
+      battery: {
+        today: { entity: null }, // e.g. sensor.sigen_plant_battery_discharge_energy_daily
+        month: { entity: null },
+        ytd:   { entity: null },
+      },
+      solar: {
+        today: { entity: null }, // e.g. sensor.sigen_plant_pv_self_consumption_daily
+        month: { entity: null },
+        ytd:   { entity: null },
+      },
+      total: {
+        today: { entity: null }, // e.g. sensor.sigen_plant_consumed_energy_daily (else summed)
+        month: { entity: null },
+        ytd:   { entity: null },
+      },
+    },
   },
 };

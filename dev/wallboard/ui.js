@@ -313,45 +313,69 @@ function computePeriod(B, key) {
   const netIncl = importCost == null ? null : importCost - (exportIncome || 0);
   const netExcl = importCost == null ? null : importCost - (carCost || 0) - (exportIncome || 0);
 
-  return { importCost, importEnergy, exportIncome, exportEnergy, solarEnergy, carEnergy, carCost, netIncl, netExcl };
+  // House consumption split by source (powering the house; excludes battery
+  // charging). "From grid" here is grid->load, NOT the import meter.
+  const usedGrid    = readSource(B.consumption.grid[key]);
+  const usedBattery = readSource(B.consumption.battery[key]);
+  const usedSolar   = readSource(B.consumption.solar[key]);
+  let   usedTotal   = readSource(B.consumption.total[key]);
+  if (usedTotal == null && usedGrid != null && usedBattery != null && usedSolar != null) {
+    usedTotal = usedGrid + usedBattery + usedSolar;
+  }
+
+  return {
+    importCost, importEnergy, exportIncome, exportEnergy, solarEnergy,
+    carEnergy, carCost, netIncl, netExcl,
+    usedGrid, usedBattery, usedSolar, usedTotal,
+  };
 }
 
 function renderBudget() {
   const B = ENTITIES.budget;
   const periods = B.periods;
   const data = periods.map((p) => computePeriod(B, p.key));
+  const colN = periods.length + 1;
 
-  // money cell with optional kWh sub-line; `cls` colours the figure
-  const cell = (money, kwh, cls = '') =>
-    `<td><span class="b-money ${cls}">${money}</span>${kwh ? `<span class="b-sub tnum">${kwh}</span>` : ''}</td>`;
+  // cell with a primary figure + optional kWh sub-line; `cls` colours it
+  const cell = (primary, sub, cls = '') =>
+    `<td><span class="b-money ${cls}">${primary}</span>${sub ? `<span class="b-sub tnum">${sub}</span>` : ''}</td>`;
+  // a row: label + one cell per period, built by fn(periodData)
+  const row = (label, fn, thCls = '') =>
+    `<tr><th class="${thCls}">${label}</th>${data.map(fn).join('')}</tr>`;
+  const grp = (label) => `<tr class="b-grp"><th colspan="${colN}">${label}</th></tr>`;
+
+  const money  = (v) => (v == null ? '—' : fmtMoney(v));
+  const moneyP = (v) => (v == null ? '—' : '+' + fmtMoney(v)); // income, leading +
+  const kwh    = (v) => (v == null ? '—' : fmtKwh(v));
+  const sub    = (v) => (v == null ? '' : fmtKwh(v));
 
   const head = `<tr><th></th>${periods.map((p) => `<th>${p.label}</th>`).join('')}</tr>`;
 
-  const rowImport = `<tr><th>Import</th>${data.map((d) =>
-    cell(d.importCost == null ? '—' : fmtMoney(d.importCost),
-         d.importEnergy == null ? '' : fmtKwh(d.importEnergy), 'spend')).join('')}</tr>`;
-
-  const rowExport = `<tr><th>Export</th>${data.map((d) =>
-    cell(d.exportIncome == null ? '—' : '+' + fmtMoney(d.exportIncome),
-         d.exportEnergy == null ? '' : fmtKwh(d.exportEnergy), 'income')).join('')}</tr>`;
-
-  const rowSolar = `<tr><th>Solar</th>${data.map((d) =>
-    cell(d.solarEnergy == null ? '—' : fmtKwh(d.solarEnergy), '', 'solar')).join('')}</tr>`;
-
-  const rowCar = `<tr><th>Car</th>${data.map((d) =>
-    cell(d.carCost == null ? '—' : fmtMoney(d.carCost),
-         d.carEnergy == null ? '' : fmtKwh(d.carEnergy), 'spend')).join('')}</tr>`;
-
   const netCls = (v) => (v == null ? '' : v < 0 ? 'income' : 'spend');
-  const rowNetIncl = `<tr class="b-net"><th>Net <small>incl. car</small></th>${data.map((d) =>
-    `<td><span class="b-money ${netCls(d.netIncl)}">${fmtMoneySigned(d.netIncl)}</span></td>`).join('')}</tr>`;
-  const rowNetExcl = `<tr class="b-net"><th>Net <small>excl. car</small></th>${data.map((d) =>
-    `<td><span class="b-money ${netCls(d.netExcl)}">${fmtMoneySigned(d.netExcl)}</span></td>`).join('')}</tr>`;
 
   $('budget-grid').innerHTML = `<table class="budget-table">
     <thead>${head}</thead>
-    <tbody>${rowImport}${rowExport}${rowSolar}${rowCar}</tbody>
-    <tfoot>${rowNetIncl}${rowNetExcl}</tfoot>
+    <tbody>
+      ${grp('Cost')}
+      ${row('Import', (d) => cell(money(d.importCost),  sub(d.importEnergy), 'spend'))}
+      ${row('Export', (d) => cell(moneyP(d.exportIncome), sub(d.exportEnergy), 'income'))}
+      ${row('Car',    (d) => cell(money(d.carCost),     sub(d.carEnergy), 'spend'))}
+    </tbody>
+    <tbody>
+      ${grp('Generation')}
+      ${row('Solar', (d) => cell(kwh(d.solarEnergy), '', 'solar'))}
+    </tbody>
+    <tbody>
+      ${grp('Used by house')}
+      ${row('From grid',    (d) => cell(kwh(d.usedGrid), '', 'grid'))}
+      ${row('From battery', (d) => cell(kwh(d.usedBattery), '', 'batt'))}
+      ${row('From solar',   (d) => cell(kwh(d.usedSolar), '', 'solar'))}
+      ${row('Total',        (d) => cell(kwh(d.usedTotal), '', 'total'), 'b-strong')}
+    </tbody>
+    <tfoot>
+      ${row('Net <small>incl. car</small>', (d) => `<td><span class="b-money ${netCls(d.netIncl)}">${fmtMoneySigned(d.netIncl)}</span></td>`, 'b-net-th')}
+      ${row('Net <small>excl. car</small>', (d) => `<td><span class="b-money ${netCls(d.netExcl)}">${fmtMoneySigned(d.netExcl)}</span></td>`, 'b-net-th')}
+    </tfoot>
   </table>`;
 }
 

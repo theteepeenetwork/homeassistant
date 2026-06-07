@@ -171,12 +171,25 @@ The budget tile (column 3) is a **period × metric matrix** defined in
 { entity: null }                  // shows "—" until wired
 ```
 
-It then crunches, per period (Today / Month / YTD):
+The tile has three sections plus the net totals:
 
-```
-Net (incl. car) = import cost − export income
-Net (excl. car) = import cost − car cost − export income
-```
+- **Cost (£):** Import, Export (income, `+`), Car
+- **Generation (kWh):** Solar generated
+- **Used by house (kWh):** From grid / From battery / From solar / Total —
+  i.e. **what powered the house, split by source**
+- **Net:**
+  ```
+  Net (incl. car) = import cost − export income
+  Net (excl. car) = import cost − car cost − export income
+  ```
+
+> **"Used by house" is house LOAD only — it excludes energy used to charge the
+> battery (and the EV).** So **From grid** is the *grid→house* portion, **not**
+> the meter import (which also includes battery/EV charging). That source split
+> can only come from Sigen, so these rows are PENDING until Modbus opens.
+> **Total** is a direct Sigen house-load sensor if you set one, otherwise the
+> sum of the three — but only shown when all three are present (else "—", to
+> avoid a misleading total).
 
 Costs auto-convert pence→£ when the entity unit is `p`/`pence`. Car cost is
 `car kWh × off-peak rate` (same logic as the EV panel) unless you set an
@@ -196,6 +209,7 @@ with a `+`; net spend shows amber.
 | **Export** (all periods) | Your export meter has its own serial/MPAN. Run `./discover-entities.sh \| grep _export_` and paste `…_export_current_accumulative_cost` / `…_consumption` into `budget.export.*.today`. |
 | **Import / Export — Month & YTD** | Octopus doesn't expose these directly. Create **utility_meter** helpers (Settings → Devices & Services → Helpers → Utility Meter) with a *monthly* and a *yearly* cycle, sourced from the import/export cost & consumption sensors. Or add Octopus **cost trackers** with `_month` companions. Put the resulting entity IDs into `budget.import.*` / `budget.export.*`. |
 | **Solar — generation** | From the Sigen integration once Modbus opens (e.g. a daily PV-energy sensor for Today, plus utility_meter helpers for Month/YTD). Paste into `budget.solar.energy.*`. |
+| **Used by house — from grid / battery / solar** | All from Sigen (PENDING). These are *to-load* energies, **excluding battery charging** — e.g. grid→load, battery discharge→load, solar self-consumption→load. Paste into `budget.consumption.{grid,battery,solar}.*`. Optionally set `budget.consumption.total.*` to a Sigen house-load energy sensor; otherwise Total is the sum of the three. Month/YTD need utility_meter helpers. |
 | **Car — YTD** | No yearly tracker by default — add an Octopus cost tracker `_year` (or a yearly utility_meter on the EV consumption) and set `budget.car.energy.ytd`. |
 
 Every cell is independent: wire what you have, the rest stays "—" and lights up
