@@ -33,11 +33,12 @@ function fmtWatts(w) {
   if (a >= 1000) return `${(w / 1000).toFixed(2)} kW`;
   return `${Math.round(w)} W`;
 }
-function fmtWithUnit(id) {
-  const n = ha.getNumber(id);
+function fmtKwh(n) { return n == null ? '—' : `${Number(n).toFixed(1)} kWh`; }
+
+// Money with sign: spend (>=0) -> "£1.23"; credit (<0) -> "+£1.23".
+function fmtMoneySigned(n) {
   if (n == null) return '—';
-  const u = ha.getAttr(id, 'unit_of_measurement', '');
-  return `${n}${u ? ' ' + u : ''}`;
+  return n < 0 ? '+' + fmtMoney(-n) : fmtMoney(n);
 }
 
 // =============================================================================
@@ -267,50 +268,115 @@ function collectUsedEntityIds() {
   return ids;
 }
 
-function renderServer() {
-  const S = ENTITIES.server;
+// =============================================================================
+//  Running Budget — period x metric matrix with two net totals.
+//  Crunches: import (spend), export (income), solar (generated), car (spend),
+//  then Net incl. car (import − export) and Net excl. car (import − car − export).
+// =============================================================================
 
-  $('srv-cpu').textContent       = (() => { const n = ha.getNumber(S.cpuTemp); return n == null ? '—' : `${Math.round(n)}°C`; })();
-  $('srv-containers').textContent = ha.getState(S.containersRunning) ?? '—';
-  $('srv-disk').textContent      = fmtWithUnit(S.diskFreeRoot);
-  $('srv-batt').textContent      = (() => {
-    const pct = ha.getNumber(S.battery);
-    const st = ha.getState(S.batteryStatus);
-    if (pct == null && !st) return '—';
-    return `${pct != null ? fmtPct(pct) : ''}${st ? ' · ' + st : ''}`.trim();
-  })();
-  $('srv-backup').textContent    = relativeOrState(S.lastBackup);
-
-  // Overall server badge from container-problem sensor
-  const prob = ha.getState(S.containerProblem);
-  const sb = $('server-badge');
-  if (prob === 'on') { sb.className = 'badge badge-bad'; sb.textContent = 'problem'; }
-  else if (prob === 'off') { sb.className = 'badge badge-ok'; sb.textContent = 'healthy'; }
-  else { sb.className = 'badge'; sb.textContent = '—'; }
-
-  // Per-container dots
-  const grid = $('containers-grid');
-  grid.innerHTML = ENTITIES.containers.map((c) => {
-    const st = ha.getState(c.entity);
-    const cls = st === 'on' ? 'up' : st === 'off' ? 'down' : '';
-    return `<div class="cont"><span class="c-dot ${cls}"></span>
-      <span class="c-name">${escapeHtml(c.label)}</span></div>`;
-  }).join('');
+// Read a budget "source" as a number (state or attribute). null if missing.
+function readSource(src) {
+  if (!src || !src.entity) return null;
+  if (src.attr) {
+    const v = ha.getAttr(src.entity, src.attr);
+    if (v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return ha.getNumber(src.entity);
 }
 
-function relativeOrState(id) {
-  const e = ha.getEntity(id);
-  if (!e || e.state === 'unknown' || e.state === 'unavailable') return '—';
-  // If the state parses as a timestamp, show "Nh ago"; else show raw state.
-  const t = Date.parse(e.state);
-  if (!Number.isNaN(t)) {
-    const mins = Math.round((Date.now() - t) / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.round(mins / 60);
-    if (hrs < 48) return `${hrs}h ago`;
-    return `${Math.round(hrs / 24)}d ago`;
+// Read a money source, normalising pence -> pounds if the unit says so.
+function readMoney(src) {
+  const n = readSource(src);
+  if (n == null) return null;
+  const unit = (src.attr ? '' : ha.getAttr(src.entity, 'unit_of_measurement', '')) || '';
+  const u = unit.trim().toLowerCase();
+  return (u === 'p' || u === 'pence') ? n / 100 : n; // £ otherwise (GBP/£)
+}
+
+function computePeriod(B, key) {
+  const importCost   = readMoney(B.import.cost[key]);
+  const importEnergy = readSource(B.import.energy[key]);
+  const exportIncome = readMoney(B.export.income[key]);
+  const exportEnergy = readSource(B.export.energy[key]);
+  const solarEnergy  = readSource(B.solar.energy[key]);
+  const carEnergy    = readSource(B.car.energy[key]);
+
+  // Car cost: explicit sensor if provided, else kWh x off-peak rate.
+  let carCost = readMoney(B.car.cost[key]);
+  if (carCost == null && carEnergy != null) {
+    const offPeak = ha.getAttr(ENTITIES.octopus.importRate, 'current_day_min_rate');
+    if (offPeak != null) carCost = carEnergy * Number(offPeak);
   }
-  return e.state;
+
+  const netIncl = importCost == null ? null : importCost - (exportIncome || 0);
+  const netExcl = importCost == null ? null : importCost - (carCost || 0) - (exportIncome || 0);
+
+  // House consumption split by source (powering the house; excludes battery
+  // charging). "From grid" here is grid->load, NOT the import meter.
+  const usedGrid    = readSource(B.consumption.grid[key]);
+  const usedBattery = readSource(B.consumption.battery[key]);
+  const usedSolar   = readSource(B.consumption.solar[key]);
+  let   usedTotal   = readSource(B.consumption.total[key]);
+  if (usedTotal == null && usedGrid != null && usedBattery != null && usedSolar != null) {
+    usedTotal = usedGrid + usedBattery + usedSolar;
+  }
+
+  return {
+    importCost, importEnergy, exportIncome, exportEnergy, solarEnergy,
+    carEnergy, carCost, netIncl, netExcl,
+    usedGrid, usedBattery, usedSolar, usedTotal,
+  };
+}
+
+function renderBudget() {
+  const B = ENTITIES.budget;
+  const periods = B.periods;
+  const data = periods.map((p) => computePeriod(B, p.key));
+  const colN = periods.length + 1;
+
+  // cell with a primary figure + optional kWh sub-line; `cls` colours it
+  const cell = (primary, sub, cls = '') =>
+    `<td><span class="b-money ${cls}">${primary}</span>${sub ? `<span class="b-sub tnum">${sub}</span>` : ''}</td>`;
+  // a row: label + one cell per period, built by fn(periodData)
+  const row = (label, fn, thCls = '') =>
+    `<tr><th class="${thCls}">${label}</th>${data.map(fn).join('')}</tr>`;
+  const grp = (label) => `<tr class="b-grp"><th colspan="${colN}">${label}</th></tr>`;
+
+  const money  = (v) => (v == null ? '—' : fmtMoney(v));
+  const moneyP = (v) => (v == null ? '—' : '+' + fmtMoney(v)); // income, leading +
+  const kwh    = (v) => (v == null ? '—' : fmtKwh(v));
+  const sub    = (v) => (v == null ? '' : fmtKwh(v));
+
+  const head = `<tr><th></th>${periods.map((p) => `<th>${p.label}</th>`).join('')}</tr>`;
+
+  const netCls = (v) => (v == null ? '' : v < 0 ? 'income' : 'spend');
+
+  $('budget-grid').innerHTML = `<table class="budget-table">
+    <thead>${head}</thead>
+    <tbody>
+      ${grp('Cost')}
+      ${row('Import', (d) => cell(money(d.importCost),  sub(d.importEnergy), 'spend'))}
+      ${row('Export', (d) => cell(moneyP(d.exportIncome), sub(d.exportEnergy), 'income'))}
+      ${row('Car',    (d) => cell(money(d.carCost),     sub(d.carEnergy), 'spend'))}
+    </tbody>
+    <tbody>
+      ${grp('Generation')}
+      ${row('Solar', (d) => cell(kwh(d.solarEnergy), '', 'solar'))}
+    </tbody>
+    <tbody>
+      ${grp('Used by house')}
+      ${row('From grid',    (d) => cell(kwh(d.usedGrid), '', 'grid'))}
+      ${row('From battery', (d) => cell(kwh(d.usedBattery), '', 'batt'))}
+      ${row('From solar',   (d) => cell(kwh(d.usedSolar), '', 'solar'))}
+      ${row('Total',        (d) => cell(kwh(d.usedTotal), '', 'total'), 'b-strong')}
+    </tbody>
+    <tfoot>
+      ${row('Net <small>incl. car</small>', (d) => `<td><span class="b-money ${netCls(d.netIncl)}">${fmtMoneySigned(d.netIncl)}</span></td>`, 'b-net-th')}
+      ${row('Net <small>excl. car</small>', (d) => `<td><span class="b-money ${netCls(d.netExcl)}">${fmtMoneySigned(d.netExcl)}</span></td>`, 'b-net-th')}
+    </tfoot>
+  </table>`;
 }
 
 function renderFooter() {
@@ -352,6 +418,6 @@ export function render() {
   safe('energy',  renderEnergy);
   safe('ev',      renderEV);
   safe('climate', renderClimate);
-  safe('server',  renderServer);
+  safe('budget',  renderBudget);
   safe('footer',  renderFooter);
 }

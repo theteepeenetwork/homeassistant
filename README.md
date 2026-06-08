@@ -8,7 +8,7 @@ Home Assistant–related projects for the macserver stack.
 
 A self-contained, display-only dashboard for a fixed 1920×1080 Chromium kiosk on
 a Raspberry Pi, showing live data from Home Assistant (energy/EV, climate &
-rooms, server health, weather). Vanilla HTML/CSS/JS, no build step, token kept
+rooms, a running energy budget, weather). Vanilla HTML/CSS/JS, no build step, token kept
 server-side via Caddy. See [`dev/wallboard/README.md`](dev/wallboard/README.md)
 for setup, deployment, the Pi kiosk guide, and how to wire in Sigen later.
 
