@@ -12,11 +12,11 @@
 #  Requirements:
 #   - caddy container is on the `web` Docker network (can reach homeassistant:8123).
 #   - HA_TOKEN is passed into the caddy container env (see docker-compose.yml).
-#   - Pi-hole resolves wallboard.home -> 192.168.1.190 (add the DNS record).
+#   - Pi-hole resolves dashboard.home -> 192.168.1.190 (add the DNS record).
 #   - Bind-mount ~/dev/wallboard -> /srv/wallboard:ro on the caddy service.
 # =============================================================================
 
-http://wallboard.home {
+http://dashboard.home {
 	# Proxied Home Assistant REST API — token added here, never in the browser.
 	handle /api/* {
 		reverse_proxy http://homeassistant:8123 {

@@ -58,7 +58,7 @@ echo 'HA_TOKEN=<paste-token>' >> .env   # or edit .env
 
 Merge the two snippets in this repo into your **real** stack files:
 
-- **`stack/caddy/Caddyfile`** — add the `http://wallboard.home { … }` block.
+- **`stack/caddy/Caddyfile`** — add the `http://dashboard.home { … }` block.
   It serves `/srv/wallboard` and proxies `/api/*` to `http://homeassistant:8123`
   with `header_up Authorization "Bearer {env.HA_TOKEN}"`.
 - **`stack/docker-compose.yml`** — on the `caddy` service add:
@@ -70,7 +70,7 @@ Merge the two snippets in this repo into your **real** stack files:
 
 ### c. DNS
 
-Add `wallboard.home` to Pi-hole pointing at `192.168.1.190` (it already
+Add `dashboard.home` to Pi-hole pointing at `192.168.1.190` (it already
 resolves `*.home` there, so a normal A record / wildcard covers it).
 
 ### d. Push the site and restart Caddy
@@ -85,12 +85,12 @@ cd ~/stack && docker compose up -d caddy      # reload Caddy with the new config
 ### e. Verify
 
 ```bash
-curl -I http://wallboard.home                 # 200, serves index.html
-curl -s http://wallboard.home/api/states | head   # proxied HA states (token injected)
+curl -I http://dashboard.home                 # 200, serves index.html
+curl -s http://dashboard.home/api/states | head   # proxied HA states (token injected)
 ./~/dev/wallboard/discover-entities.sh        # confirm entity ids
 ```
 
-Open `http://wallboard.home` in a browser. Then set up the Pi: see
+Open `http://dashboard.home` in a browser. Then set up the Pi: see
 **`pi-kiosk.md`**.
 
 ---

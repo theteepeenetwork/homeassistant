@@ -14,7 +14,7 @@
 # =============================================================================
 set -euo pipefail
 
-URL="${HA_URL:-http://wallboard.home}"
+URL="${HA_URL:-http://dashboard.home}"
 TOKEN="${HA_TOKEN:-}"
 
 auth=()

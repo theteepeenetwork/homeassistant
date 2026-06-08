@@ -4,7 +4,7 @@
 # -----------------------------------------------------------------------------
 #  Target: Raspberry Pi OS (Bookworm). Auto-detects Wayland (labwc/wayfire) vs
 #  X11 and installs an autostart that:
-#     - launches Chromium full-screen kiosk -> http://wallboard.home
+#     - launches Chromium full-screen kiosk -> http://dashboard.home
 #     - disables screen blanking / DPMS
 #     - hides the mouse cursor
 #     - auto-restarts Chromium if it crashes
@@ -14,7 +14,7 @@
 # =============================================================================
 set -euo pipefail
 
-URL="${WALLBOARD_URL:-http://wallboard.home}"
+URL="${WALLBOARD_URL:-http://dashboard.home}"
 USER_NAME="$(id -un)"
 
 if [[ "$USER_NAME" == "root" ]]; then
@@ -119,4 +119,4 @@ fi
 echo
 echo "==> Done. Reboot to start the kiosk:   sudo reboot"
 echo "    URL: $URL"
-echo "    (Ensure the Pi uses Pi-hole 192.168.1.190 for DNS so wallboard.home resolves.)"
+echo "    (Ensure the Pi uses Pi-hole 192.168.1.190 for DNS so dashboard.home resolves.)"
