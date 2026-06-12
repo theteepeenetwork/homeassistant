@@ -124,7 +124,7 @@
             <div class="big-stat"><span id="hp-flow" class="big-val tnum">—</span><span class="big-lbl">flow °C</span></div>
             <div class="big-stat"><span id="hp-dhw" class="big-val tnum">—</span><span class="big-lbl">hot water °C</span></div>
             <div class="big-stat"><span id="hp-outdoor" class="big-val tnum">—</span><span class="big-lbl">outdoor °C</span></div>
-            <div class="big-stat"><span id="hp-power" class="big-val tnum">—</span><span class="big-lbl">power</span></div>
+            <div class="big-stat"><span id="hp-power" class="big-val tnum">—</span><span class="big-lbl">elec today (kWh)</span></div>
           </div>
         </div>
         <div class="card card-rooms">
@@ -139,10 +139,49 @@
       <section class="col col-budget">
         <div class="card card-budget">
           <div class="card-title">Running Budget
-            <span id="budget-note" class="badge">today · month · YTD</span>
+            <span id="budget-badge" class="badge badge-warn">yest + month</span>
           </div>
-          <!-- period x metric table, rebuilt each tick (text only, no animation) -->
-          <div id="budget-grid" class="budget-grid"></div>
+
+          <div class="budget-rows">
+            <div class="brow">
+              <span class="b-lbl">Import <em>yest</em></span>
+              <span id="b-import-kwh" class="b-sub tnum">—</span>
+              <span id="b-import" class="b-amt spend tnum">—</span>
+            </div>
+            <div class="brow">
+              <span class="b-lbl">Export <em>yest</em></span>
+              <span id="b-export-kwh" class="b-sub tnum">—</span>
+              <span id="b-export" class="b-amt credit tnum">—</span>
+            </div>
+            <div class="brow">
+              <span class="b-lbl">Generation</span>
+              <span id="b-gen-kwh" class="b-sub tnum"></span>
+              <span id="b-gen" class="b-amt b-muted tnum">awaiting Sigen</span>
+            </div>
+            <div class="brow">
+              <span class="b-lbl">Standing <em>/day</em></span>
+              <span class="b-sub"></span>
+              <span id="b-standing" class="b-amt spend tnum">—</span>
+            </div>
+            <div class="brow">
+              <span class="b-lbl">Car charging <em>month</em></span>
+              <span id="b-car-kwh" class="b-sub tnum">—</span>
+              <span id="b-car" class="b-amt spend tnum">—</span>
+            </div>
+          </div>
+
+          <div class="budget-nets">
+            <div class="net">
+              <span class="net-lbl">Net incl. car <em>yest</em></span>
+              <span id="b-net-incl" class="net-val tnum">—</span>
+            </div>
+            <div class="net">
+              <span class="net-lbl">Net excl. car <em>yest</em></span>
+              <span id="b-net-excl" class="net-val tnum">—</span>
+            </div>
+          </div>
+
+          <div id="budget-note" class="budget-note">— credit = you earned · spend = you paid</div>
         </div>
       </section>
 

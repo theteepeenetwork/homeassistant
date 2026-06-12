@@ -1,7 +1,7 @@
 # Raspberry Pi kiosk setup
 
 Turns a Raspberry Pi (Pi OS Bookworm) into an always-on, full-screen Chromium
-display showing `http://dashboard.home`. Works on both the default Wayland
+display showing `http://wallboard.home`. Works on both the default Wayland
 (labwc/wayfire) and X11 sessions.
 
 ## Quick start (scripted)
@@ -25,15 +25,15 @@ The script:
   autostart, or LXDE/X11 autostart),
 - hides the mouse cursor.
 
-Override the URL with `WALLBOARD_URL=http://dashboard.home bash pi-kiosk-setup.sh`.
+Override the URL with `WALLBOARD_URL=http://wallboard.home bash pi-kiosk-setup.sh`.
 
 ## Prerequisites
 
 - **DNS**: the Pi must use the LAN DNS (Pi-hole at `192.168.1.190`) so
-  `dashboard.home` resolves. A normal DHCP client on your network gets this
-  automatically. Verify: `getent hosts dashboard.home`.
+  `wallboard.home` resolves. A normal DHCP client on your network gets this
+  automatically. Verify: `getent hosts wallboard.home`.
 - The wallboard must be deployed and reachable (see top-level `README.md`):
-  `curl -I http://dashboard.home` should return `200`.
+  `curl -I http://wallboard.home` should return `200`.
 
 ## What the script configures
 
@@ -41,7 +41,7 @@ Override the URL with `WALLBOARD_URL=http://dashboard.home bash pi-kiosk-setup.s
 ```
 chromium-browser --kiosk --noerrordialogs --disable-infobars --incognito \
   --check-for-update-interval=31536000 --disable-session-crashed-bubble \
-  --disable-features=Translate http://dashboard.home
+  --disable-features=Translate http://wallboard.home
 ```
 
 ### Disable screen blanking / DPMS
@@ -80,7 +80,7 @@ setup; run `wlr-randr` once to find your output name.
 
 | Symptom | Fix |
 |---|---|
-| `dashboard.home` won't resolve | Confirm Pi DNS = Pi-hole; `getent hosts dashboard.home` |
+| `wallboard.home` won't resolve | Confirm Pi DNS = Pi-hole; `getent hosts wallboard.home` |
 | Black screen / no autostart | Check session: `echo $XDG_SESSION_TYPE`; re-run the script |
 | Screen sleeps after a while | `raspi-config` → Screen Blanking → Off; reboot |
 | "Restore pages" bubble | Already suppressed via `--disable-session-crashed-bubble` + clean profile |

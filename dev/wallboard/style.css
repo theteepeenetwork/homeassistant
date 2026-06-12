@@ -178,40 +178,45 @@ html, body {
 .room .r-hum  { font-size: 18px; color: var(--fg-mute); }
 .room-empty { color: var(--fg-mute); font-size: 18px; padding: 20px; }
 
-/* ---- Running Budget column ---- */
+/* ---- Running budget column ---- */
 .card-budget { flex: 1; }
-.budget-grid { flex: 1; display: flex; }
-.budget-table { width: 100%; border-collapse: collapse; }
-.budget-table th, .budget-table td { text-align: right; padding: 6px 6px; }
-.budget-table thead th { font-size: 16px; color: var(--fg-dim); text-transform: uppercase;
-                         letter-spacing: .5px; border-bottom: 1px solid var(--line); }
-.budget-table thead th:first-child { text-align: left; }
-.budget-table tbody th { text-align: left; font-size: 18px; font-weight: 600; color: var(--fg-dim); }
-.budget-table td { vertical-align: baseline; }
 
-/* Section header rows (Cost / Generation / Used by house) */
-.b-grp th { text-align: left; font-size: 13px; font-weight: 700; color: var(--fg-mute);
-            text-transform: uppercase; letter-spacing: 1px; padding: 14px 6px 4px; }
-.budget-table tbody:first-of-type .b-grp th { padding-top: 4px; }
+.budget-rows { display: flex; flex-direction: column; }
+.brow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 16px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+.b-lbl { font-size: 20px; color: var(--fg-dim); }
+.b-lbl em { font-style: normal; font-size: 13px; color: var(--fg-mute);
+            text-transform: uppercase; letter-spacing: .5px; margin-left: 6px; }
+.b-sub { font-size: 18px; color: var(--fg-mute); text-align: right; min-width: 96px; }
+.b-amt { font-size: 27px; font-weight: 700; text-align: right; min-width: 110px; }
+.b-amt.spend  { color: var(--fg); }
+.b-amt.credit { color: var(--teal); }
+.b-amt.b-muted { color: var(--fg-mute); font-size: 18px; font-weight: 600; }
 
-.b-money { font-size: 23px; font-weight: 700; font-variant-numeric: tabular-nums; display: block; line-height: 1.05; }
-.b-sub   { font-size: 13px; color: var(--fg-mute); display: block; }
-.b-money.spend  { color: var(--fg); }
-.b-money.income { color: var(--teal); }
-.b-money.solar  { color: var(--yellow); }
-.b-money.grid   { color: var(--fg); }
-.b-money.batt   { color: var(--accent); }
-.b-money.total  { color: var(--fg); font-weight: 800; }
-.budget-table th.b-strong { font-weight: 800; color: var(--fg); }
+.budget-nets {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.net {
+  display: flex; align-items: baseline; justify-content: space-between;
+  background: var(--bg-card-2); border-radius: 12px; padding: 16px 20px;
+}
+.net-lbl { font-size: 20px; color: var(--fg-dim); }
+.net-lbl em { font-style: normal; font-size: 13px; color: var(--fg-mute);
+              text-transform: uppercase; letter-spacing: .5px; margin-left: 6px; }
+.net-val { font-size: 40px; font-weight: 800; line-height: 1; }
+.net-val.credit { color: var(--green); }
+.net-val.spend  { color: var(--amber); }
 
-/* Net total rows (tfoot): heavier, divider above; credit green, spend amber */
-.budget-table tfoot tr:first-child th,
-.budget-table tfoot tr:first-child td { border-top: 2px solid var(--line); padding-top: 14px; }
-.b-net-th { font-size: 20px !important; font-weight: 700 !important; color: var(--fg) !important; }
-.b-net-th small { display: block; font-size: 12px; font-weight: 500; color: var(--fg-mute); text-transform: uppercase; letter-spacing: .5px; }
-.budget-table tfoot .b-money { font-size: 28px; }
-.budget-table tfoot .b-money.spend  { color: var(--amber); }
-.budget-table tfoot .b-money.income { color: var(--green); }
+.budget-note { margin-top: auto; padding-top: 14px; font-size: 14px; color: var(--fg-mute); }
 
 /* "Awaiting" / unavailable visual state for whole nodes */
 .dim { opacity: .35; }
