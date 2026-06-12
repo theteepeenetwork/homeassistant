@@ -126,6 +126,17 @@
             <div class="big-stat"><span id="hp-outdoor" class="big-val tnum">—</span><span class="big-lbl">outdoor °C</span></div>
             <div class="big-stat"><span id="hp-power" class="big-val tnum">—</span><span class="big-lbl">elec today (kWh)</span></div>
           </div>
+          <!-- Heating vs hot-water cost (kWh × blended rate). today · month. -->
+          <div class="hp-costs">
+            <div class="hp-cost">
+              <span class="hpc-lbl">Heating</span>
+              <span class="hpc-vals tnum"><span id="hp-heat-cost-today">—</span> <em>today</em> · <span id="hp-heat-cost-month">—</span> <em>month</em></span>
+            </div>
+            <div class="hp-cost">
+              <span class="hpc-lbl">Hot water</span>
+              <span class="hpc-vals tnum"><span id="hp-dhw-cost-today">—</span> <em>today</em> · <span id="hp-dhw-cost-month">—</span> <em>month</em></span>
+            </div>
+          </div>
         </div>
         <div class="card card-rooms">
           <div class="card-title">Rooms</div>
@@ -139,49 +150,13 @@
       <section class="col col-budget">
         <div class="card card-budget">
           <div class="card-title">Running Budget
-            <span id="budget-badge" class="badge badge-warn">yest + month</span>
+            <span id="budget-badge" class="badge badge-warn">yesterday only</span>
           </div>
 
-          <div class="budget-rows">
-            <div class="brow">
-              <span class="b-lbl">Import <em>yest</em></span>
-              <span id="b-import-kwh" class="b-sub tnum">—</span>
-              <span id="b-import" class="b-amt spend tnum">—</span>
-            </div>
-            <div class="brow">
-              <span class="b-lbl">Export <em>yest</em></span>
-              <span id="b-export-kwh" class="b-sub tnum">—</span>
-              <span id="b-export" class="b-amt credit tnum">—</span>
-            </div>
-            <div class="brow">
-              <span class="b-lbl">Generation</span>
-              <span id="b-gen-kwh" class="b-sub tnum"></span>
-              <span id="b-gen" class="b-amt b-muted tnum">awaiting Sigen</span>
-            </div>
-            <div class="brow">
-              <span class="b-lbl">Standing <em>/day</em></span>
-              <span class="b-sub"></span>
-              <span id="b-standing" class="b-amt spend tnum">—</span>
-            </div>
-            <div class="brow">
-              <span class="b-lbl">Car charging <em>month</em></span>
-              <span id="b-car-kwh" class="b-sub tnum">—</span>
-              <span id="b-car" class="b-amt spend tnum">—</span>
-            </div>
-          </div>
+          <!-- period × metric table, rebuilt each tick by ui.js renderBudget -->
+          <div id="budget-grid" class="budget-grid"></div>
 
-          <div class="budget-nets">
-            <div class="net">
-              <span class="net-lbl">Net incl. car <em>yest</em></span>
-              <span id="b-net-incl" class="net-val tnum">—</span>
-            </div>
-            <div class="net">
-              <span class="net-lbl">Net excl. car <em>yest</em></span>
-              <span id="b-net-excl" class="net-val tnum">—</span>
-            </div>
-          </div>
-
-          <div id="budget-note" class="budget-note">— credit = you earned · spend = you paid</div>
+          <div class="budget-note">Net + = you paid · Net <em>+£</em> = you earned · grid figures lag ~24h (completed days)</div>
         </div>
       </section>
 
@@ -194,6 +169,14 @@
     </footer>
 
   </div>
+
+  <!-- Optional: the multi-period budget + heat-pump month cost read HA
+       long-term statistics over the WebSocket API, which needs the token in an
+       auth MESSAGE — Caddy can't inject it the way it does for REST. Have Caddy
+       serve /ha-token.js (sets window.__HA_TOKEN from $HA_TOKEN) and uncomment
+       the line below. Without it the board still works; the budget shows the
+       "yesterday" column only. See DEPLOY-dashboard-home.md. -->
+  <!-- <script src="/ha-token.js"></script> -->
 
   <script type="module" src="app.js"></script>
 </body>

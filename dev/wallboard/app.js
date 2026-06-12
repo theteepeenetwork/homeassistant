@@ -11,7 +11,7 @@
 
 import { CONFIG, ENTITIES } from './config.js';
 import * as ha from './ha.js';
-import { render, setForecast } from './ui.js';
+import { render, setForecast, setStats, statsQuery } from './ui.js';
 
 // Never let an uncaught error surface as a browser dialog on the wall.
 window.addEventListener('error', (e) => console.error('[wallboard] window error', e.error || e.message));
@@ -63,6 +63,17 @@ async function refreshForecast() {
   if (fc.length) { setForecast(fc); render(); }
 }
 
+// ---- Statistics (slow refresh) ----------------------------------------------
+//  Multi-period budget + heat-pump month cost come from HA long-term statistics.
+//  Fetched here on a slow timer and handed to ui.js; render() buckets per period.
+async function refreshStats() {
+  const q = statsQuery();
+  if (!q.ids.length) return;
+  const data = await ha.getStatistics(q.ids, q.start, q.end, 'day');
+  setStats(data);
+  render();
+}
+
 // ---- Boot -------------------------------------------------------------------
 function boot() {
   tickClock();
@@ -75,6 +86,10 @@ function boot() {
   // First forecast pull once HA is reachable, then every 15 min.
   refreshForecast();
   setInterval(refreshForecast, 15 * 60 * 1000);
+
+  // Statistics (multi-period budget + heat-pump month cost), slow refresh.
+  refreshStats();
+  setInterval(refreshStats, CONFIG.statsRefreshMs);
 
   // 1s housekeeping tick for clock / night-dim / watchdog (cheap, no leaks).
   setInterval(() => {

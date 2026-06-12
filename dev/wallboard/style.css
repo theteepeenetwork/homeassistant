@@ -180,43 +180,47 @@ html, body {
 
 /* ---- Running budget column ---- */
 .card-budget { flex: 1; }
+.budget-grid { flex: 1; min-height: 0; }
 
-.budget-rows { display: flex; flex-direction: column; }
-.brow {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: baseline;
-  gap: 16px;
-  padding: 13px 0;
-  border-bottom: 1px solid var(--line);
+/* period × metric table: label column + 5 period columns */
+.budget-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.budget-table th, .budget-table td { text-align: right; padding: 9px 6px; }
+.budget-table thead th {
+  font-size: 13px; font-weight: 600; color: var(--fg-mute);
+  text-transform: uppercase; letter-spacing: .5px;
+  border-bottom: 1px solid var(--line); padding-bottom: 6px;
 }
-.b-lbl { font-size: 20px; color: var(--fg-dim); }
-.b-lbl em { font-style: normal; font-size: 13px; color: var(--fg-mute);
-            text-transform: uppercase; letter-spacing: .5px; margin-left: 6px; }
-.b-sub { font-size: 18px; color: var(--fg-mute); text-align: right; min-width: 96px; }
-.b-amt { font-size: 27px; font-weight: 700; text-align: right; min-width: 110px; }
-.b-amt.spend  { color: var(--fg); }
-.b-amt.credit { color: var(--teal); }
-.b-amt.b-muted { color: var(--fg-mute); font-size: 18px; font-weight: 600; }
+.budget-table .bt-corner { width: 96px; }
+.budget-table tbody tr { border-bottom: 1px solid var(--line); }
+.bt-lbl { text-align: left; font-size: 17px; color: var(--fg-dim); font-weight: 500; }
+.bt-lbl em { font-style: normal; display: block; font-size: 12px; color: var(--fg-mute);
+             text-transform: uppercase; letter-spacing: .5px; }
+.budget-table td { vertical-align: baseline; }
+.bt-amt { display: block; font-size: 21px; font-weight: 700; line-height: 1.1; }
+.bt-sub { display: block; font-size: 12px; color: var(--fg-mute); }
+.bt-credit .bt-amt { color: var(--teal); }
+.bt-muted  .bt-amt { color: var(--fg-mute); font-weight: 600; font-size: 17px; }
 
-.budget-nets {
-  margin-top: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.net {
-  display: flex; align-items: baseline; justify-content: space-between;
-  background: var(--bg-card-2); border-radius: 12px; padding: 16px 20px;
-}
-.net-lbl { font-size: 20px; color: var(--fg-dim); }
-.net-lbl em { font-style: normal; font-size: 13px; color: var(--fg-mute);
-              text-transform: uppercase; letter-spacing: .5px; margin-left: 6px; }
-.net-val { font-size: 40px; font-weight: 800; line-height: 1; }
-.net-val.credit { color: var(--green); }
-.net-val.spend  { color: var(--amber); }
+/* net rows: emphasised, boxed band */
+.bt-net { background: var(--bg-card-2); }
+.bt-net .bt-lbl { color: var(--fg); font-weight: 600; }
+.bt-net .bt-amt { font-size: 23px; font-weight: 800; }
+.bt-net-credit .bt-amt { color: var(--green); }
+.bt-net-spend  .bt-amt { color: var(--amber); }
 
 .budget-note { margin-top: auto; padding-top: 14px; font-size: 14px; color: var(--fg-mute); }
+.budget-note em { font-style: normal; color: var(--green); }
+
+/* ---- Heat-pump cost strip ---- */
+.hp-costs { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.hp-cost {
+  display: flex; align-items: baseline; justify-content: space-between;
+  background: var(--bg-card-2); border-radius: 12px; padding: 10px 16px;
+}
+.hpc-lbl  { font-size: 17px; color: var(--fg-dim); }
+.hpc-vals { font-size: 22px; font-weight: 700; }
+.hpc-vals em { font-style: normal; font-size: 13px; font-weight: 500;
+               color: var(--fg-mute); text-transform: uppercase; letter-spacing: .5px; }
 
 /* "Awaiting" / unavailable visual state for whole nodes */
 .dim { opacity: .35; }

@@ -17,6 +17,83 @@ const $ = (id) => document.getElementById(id);
 let forecastData = [];
 export function setForecast(arr) { forecastData = Array.isArray(arr) ? arr : []; }
 
+// Long-term statistics, fetched on a slow timer by app.js (ha.getStatistics).
+// Shape: { [statistic_id]: [{ start, end, change, sum, state }, ...] }.
+let statsData = {};
+export function setStats(obj) { statsData = (obj && typeof obj === 'object') ? obj : {}; }
+function hasStats() { return Object.keys(statsData).length > 0; }
+
+// ---- Period windows ---------------------------------------------------------
+//  All budget figures are aligned to COMPLETED days (grid cost is only final
+//  ~24h late), so every window ends at local midnight today (today excluded).
+//  Order here is also the column order in the budget table.
+const PERIODS = [
+  { key: 'yesterday', label: 'Yest' },
+  { key: 'thisWeek',  label: 'This wk' },
+  { key: 'lastWeek',  label: 'Last wk' },
+  { key: 'month',     label: 'Month' },
+  { key: 'year',      label: 'Year' },
+];
+
+function periodWindows(now = new Date()) {
+  const dayMs = 86400000;
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  // Monday-start week (en-GB): JS getDay() Sun=0..Sat=6 -> days since Monday.
+  const dow = new Date(todayStart).getDay();
+  const sinceMon = (dow + 6) % 7;
+  const weekStart = todayStart - sinceMon * dayMs;
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const yearStart = new Date(now.getFullYear(), 0, 1).getTime();
+  const mk = (start, end) => ({ start, end, days: Math.max(0, Math.round((end - start) / dayMs)) });
+  return {
+    yesterday: mk(todayStart - dayMs, todayStart),
+    thisWeek:  mk(weekStart, todayStart),
+    lastWeek:  mk(weekStart - 7 * dayMs, weekStart),
+    month:     mk(monthStart, todayStart),
+    year:      mk(yearStart, todayStart),
+    todayStart,
+  };
+}
+
+// Sum a statistic's per-day `change` over [startMs, endMs). Falls back to the
+// difference of cumulative `sum` across the window edges if `change` is absent.
+// Returns null when no usable data lands in the window.
+function sumChange(rows, startMs, endMs) {
+  if (!Array.isArray(rows) || !rows.length) return null;
+  let total = null, firstSum = null, lastSum = null, sawChange = false;
+  for (const r of rows) {
+    const t = typeof r.start === 'number' ? r.start : Date.parse(r.start);
+    if (t == null || Number.isNaN(t) || t < startMs || t >= endMs) continue;
+    if (r.change != null && Number.isFinite(Number(r.change))) {
+      total = (total || 0) + Number(r.change); sawChange = true;
+    }
+    if (r.sum != null && Number.isFinite(Number(r.sum))) {
+      if (firstSum == null) firstSum = Number(r.sum);
+      lastSum = Number(r.sum);
+    }
+  }
+  if (sawChange) return total;
+  if (firstSum != null && lastSum != null) return lastSum - firstSum;
+  return null;
+}
+
+// Sum a configured statistic id over a window, or null if unwired/unavailable.
+function statSum(statId, win) {
+  if (!statId) return null;
+  return sumChange(statsData[statId], win.start, win.end);
+}
+
+// The query app.js sends to ha.getStatistics: all wired stat ids over the widest
+// window we need (earliest period start -> now).
+export function statsQuery() {
+  const S = ENTITIES.stats || {};
+  const ids = Array.from(new Set(Object.values(S).filter(Boolean)));
+  const w = periodWindows();
+  // Earliest start across all periods (last-week can precede year-start in early Jan).
+  const start = Math.min(w.lastWeek.start, w.year.start);
+  return { ids, start: new Date(start).toISOString(), end: new Date(w.todayStart).toISOString() };
+}
+
 const EV_MAX_KW = 7.4;       // Ohme single-phase ceiling, for the gauge scale
 const FLOW_MIN_W = 20;       // ignore sub-20W noise so flow lines don't flicker
 
@@ -26,6 +103,7 @@ const fmtTemp = (n) => (n == null ? '—' : `${Math.round(n)}°`);
 const fmtPct  = (n) => (n == null ? '—' : `${Math.round(n)}%`);
 const fmtMoney = (n) => (n == null ? '—' : new Intl.NumberFormat(CONFIG.locale,
   { style: 'currency', currency: CONFIG.currency }).format(n));
+const fmtKwh = (n) => (n == null ? '—' : `${Number(n).toFixed(1)} kWh`);
 
 function fmtWatts(w) {
   if (w == null) return '—';
@@ -217,15 +295,34 @@ function renderClimate() {
   $('hp-outdoor').textContent = fmtTemp(ha.getNumber(C.outdoorTemp));
   // Onecta exposes no instantaneous power, so show today's electricity:
   // space-heating + hot-water daily kWh, summed.
-  let elec = null;
-  for (const id of (C.elecDaily || [])) {
-    const n = ha.getNumber(id);
-    if (n != null) elec = (elec || 0) + n;
-  }
+  const heatToday = ha.getNumber(C.elecDaily && C.elecDaily[0]);
+  const dhwToday  = ha.getNumber(C.elecDaily && C.elecDaily[1]);
+  const elec = (heatToday == null && dhwToday == null) ? null : (heatToday || 0) + (dhwToday || 0);
   $('hp-power').textContent = elec == null ? '—' : `${elec.toFixed(1)} kWh`;
+
+  // ---- Cost of heating vs hot water (today + month-to-date) ----------------
+  //  HP exposes only kWh, so cost = kWh × blended £/kWh (CONFIG.heatPump). Month
+  //  = completed-day statistics + today's live value. Upper-bound grid price
+  //  (ignores solar self-use); see config comment.
+  const rate = (CONFIG.heatPump && CONFIG.heatPump.blendedRatePerKwh) || null;
+  const ST = ENTITIES.stats || {};
+  const month = periodWindows().month;
+  const monthKwh = (statId, todayKwh) => {
+    const past = statSum(statId, month);          // completed days this month
+    if (past == null && todayKwh == null) return null;
+    return (past || 0) + (todayKwh || 0);          // + today's partial (live)
+  };
+  const cost = (kwh) => (rate != null && kwh != null ? kwh * rate : null);
+
+  setText('hp-heat-cost-today', fmtMoney(cost(heatToday)));
+  setText('hp-heat-cost-month', fmtMoney(cost(monthKwh(ST.heatingKwh, heatToday))));
+  setText('hp-dhw-cost-today',  fmtMoney(cost(dhwToday)));
+  setText('hp-dhw-cost-month',  fmtMoney(cost(monthKwh(ST.dhwKwh, dhwToday))));
 
   renderRooms();
 }
+
+function setText(id, txt) { const el = $(id); if (el) el.textContent = txt; }
 
 function renderRooms() {
   // Build the list of rooms: curated first, then auto-discovered (safety net).
@@ -286,63 +383,105 @@ function collectUsedEntityIds() {
 }
 
 // ---- Running budget ---------------------------------------------------------
-//  Grid import/export come from the *previous complete day* (meter lags ~24h).
-//  Car spend is the live cost tracker (month-to-date), priced off-peak.
-//  net incl. car = import + standing − export  (the real bill for that day,
-//  which already includes any car charging that day).
-//  net excl. car = net incl. car − car spend  (car priced off-peak).
+//  A period × metric table (yesterday · this week · last week · month · year).
+//  Figures come from HA long-term statistics (ha.getStatistics, bucketed per
+//  period). The "yesterday" column also falls back to the live previous-day
+//  budget.* sensors, so it still works before statistics/WS are wired.
+//
+//  Cost basis:
+//    import £ = grid import cost · export £ = export income (a credit)
+//    standing £ = £/day × completed days in the period
+//    car £   = car kWh × off-peak rate (per the OHME dispatch caveat)
+//    net WITH car = import + standing − export  (already includes car charging)
+//    net WITHOUT car = net with car − car £
 //  Negative net = credit (you earned more than you paid).
 function renderBudget() {
-  const B = ENTITIES.budget, O = ENTITIES.octopus, S = ENTITIES.sigen;
+  const B = ENTITIES.budget, O = ENTITIES.octopus, S = ENTITIES.sigen, ST = ENTITIES.stats || {};
+  const win = periodWindows();
 
-  const importCost     = ha.getNumber(B.importCost);
-  const importKwh      = ha.getNumber(B.importKwh);
-  const importStanding = ha.getNumber(B.importStanding) ?? 0;
-  const exportInc      = ha.getNumber(B.exportIncome);
-  const exportKwh      = ha.getNumber(B.exportKwh);
-  const exportStanding = ha.getNumber(B.exportStanding) ?? 0;
-  const standing       = importStanding + exportStanding;
+  const offPeak  = ha.getAttr(O.importRate, 'current_day_min_rate');
+  const standingPerDay = (ha.getNumber(B.importStanding) ?? 0) + (ha.getNumber(B.exportStanding) ?? 0);
 
-  // Car priced at off-peak (per the OHME dispatch caveat): kWh × off-peak rate.
-  const offPeak    = ha.getAttr(O.importRate, 'current_day_min_rate');
-  const carKwhMo   = ha.getAttr(B.carMonth, 'total_consumption');
-  const carKwhDay  = ha.getAttr(B.carToday, 'total_consumption');
-  const carCostMo  = (offPeak != null && carKwhMo  != null) ? Number(carKwhMo)  * Number(offPeak) : null;
-  const carCostDay = (offPeak != null && carKwhDay != null) ? Number(carKwhDay) * Number(offPeak) : null;
-
-  // Rows
-  $('b-import').textContent     = fmtMoney(importCost);
-  $('b-import-kwh').textContent = importKwh == null ? '—' : `${importKwh.toFixed(1)} kWh`;
-  $('b-export').textContent     = exportInc == null ? '—' : '+' + fmtMoney(exportInc);
-  $('b-export-kwh').textContent = exportKwh == null ? '—' : `${exportKwh.toFixed(1)} kWh`;
-  $('b-standing').textContent   = fmtMoney(standing);
-  $('b-car').textContent        = fmtMoney(carCostMo);
-  $('b-car-kwh').textContent    = carKwhMo == null ? '—' : `${Number(carKwhMo).toFixed(1)} kWh`;
-
-  // Generation — live once Sigen exposes a daily PV energy sensor, else placeholder.
-  const genKwh = ha.getNumber(B.genDailyKwh);
+  // Live "yesterday" fallback from the previous-day accumulative sensors.
+  const live = {
+    importCost: ha.getNumber(B.importCost),
+    importKwh:  ha.getNumber(B.importKwh),
+    exportCost: ha.getNumber(B.exportIncome),
+    exportKwh:  ha.getNumber(B.exportKwh),
+    genKwh:     ha.getNumber(B.genDailyKwh),
+    carKwh:     toNum(ha.getAttr(B.carToday, 'total_consumption')),
+  };
   const genLive = ha.isAvailable(B.genDailyKwh) || ha.isAvailable(S.solarPower);
-  $('b-gen').textContent     = genLive && genKwh != null ? `${genKwh.toFixed(1)} kWh` : 'awaiting Sigen';
-  $('b-gen-kwh').textContent = '';
 
-  // Nets (yesterday grid basis)
-  const netIncl = (importCost != null && exportInc != null) ? importCost + standing - exportInc : null;
-  const netExcl = (netIncl != null && carCostDay != null) ? netIncl - carCostDay : null;
-  setNet('b-net-incl', netIncl);
-  setNet('b-net-excl', netExcl);
+  // Build one metrics object per period.
+  const cols = PERIODS.map(({ key }) => {
+    const w = win[key];
+    const yest = key === 'yesterday';
+    const importCost = statSum(ST.importCost, w) ?? (yest ? live.importCost : null);
+    const importKwh  = statSum(ST.importKwh,  w) ?? (yest ? live.importKwh  : null);
+    const exportCost = statSum(ST.exportCost, w) ?? (yest ? live.exportCost : null);
+    const exportKwh  = statSum(ST.exportKwh,  w) ?? (yest ? live.exportKwh  : null);
+    const genKwh     = statSum(ST.generationKwh, w) ?? (yest && genLive ? live.genKwh : null);
+    const carKwh     = statSum(ST.carKwh, w) ?? (yest ? live.carKwh : null);
+    const carCost    = (offPeak != null && carKwh != null) ? carKwh * Number(offPeak) : null;
+    const standing   = w.days > 0 ? standingPerDay * w.days : (yest ? standingPerDay : null);
+    const netIncl = (importCost != null && exportCost != null)
+      ? importCost + (standing || 0) - exportCost : null;
+    const netExcl = (netIncl != null && carCost != null) ? netIncl - carCost : null;
+    return { importCost, importKwh, exportCost, exportKwh, genKwh, carKwh, carCost, standing, netIncl, netExcl };
+  });
+
+  // Render the table.
+  const head = `<tr><th class="bt-corner"></th>${
+    PERIODS.map((p) => `<th>${p.label}</th>`).join('')}</tr>`;
+
+  const cell = (main, sub, cls = '') =>
+    `<td class="${cls}"><span class="bt-amt tnum">${main}</span>${
+      sub ? `<span class="bt-sub tnum">${sub}</span>` : ''}</td>`;
+
+  const moneyRow = (label, pick, { credit = false } = {}) => `<tr>
+    <th class="bt-lbl">${label}</th>${cols.map((c) => {
+      const v = pick(c);
+      if (v == null) return cell('—', '');
+      const txt = credit ? '+' + fmtMoney(v) : fmtMoney(v);
+      return cell(txt, '', credit ? 'bt-credit' : '');
+    }).join('')}</tr>`;
+
+  const importRow = `<tr><th class="bt-lbl">Import</th>${
+    cols.map((c) => cell(fmtMoney(c.importCost), fmtKwhOrBlank(c.importKwh))).join('')}</tr>`;
+  const exportRow = `<tr><th class="bt-lbl">Export</th>${
+    cols.map((c) => cell(c.exportCost == null ? '—' : '+' + fmtMoney(c.exportCost),
+      fmtKwhOrBlank(c.exportKwh), 'bt-credit')).join('')}</tr>`;
+  const genRow = `<tr><th class="bt-lbl">Generation</th>${
+    cols.map((c) => cell(c.genKwh == null ? (genLive ? '—' : 'n/a') : fmtKwh(c.genKwh), '', 'bt-muted')).join('')}</tr>`;
+  const carRow = `<tr><th class="bt-lbl">Car</th>${
+    cols.map((c) => cell(fmtMoney(c.carCost), fmtKwhOrBlank(c.carKwh))).join('')}</tr>`;
+  const standingRow = moneyRow('Standing', (c) => c.standing);
+  const netInclRow = `<tr class="bt-net"><th class="bt-lbl">Net <em>with car</em></th>${
+    cols.map((c) => netCell(c.netIncl)).join('')}</tr>`;
+  const netExclRow = `<tr class="bt-net"><th class="bt-lbl">Net <em>no car</em></th>${
+    cols.map((c) => netCell(c.netExcl)).join('')}</tr>`;
+
+  $('budget-grid').innerHTML =
+    `<table class="budget-table tnum"><thead>${head}</thead><tbody>` +
+    importRow + exportRow + genRow + carRow + standingRow + netInclRow + netExclRow +
+    `</tbody></table>`;
 
   const badge = $('budget-badge');
-  badge.className = 'badge ' + (genLive ? 'badge-ok' : 'badge-warn');
-  badge.textContent = genLive ? 'live' : 'yest + month';
+  const liveStats = hasStats();
+  badge.className = 'badge ' + (liveStats ? 'badge-ok' : 'badge-warn');
+  badge.textContent = liveStats ? 'live' : 'yesterday only';
 }
 
-// Show a net as credit (+, green) when negative, or spend (plain) when positive.
-function setNet(id, val) {
-  const el = $(id);
-  if (val == null) { el.textContent = '—'; el.className = 'net-val tnum'; return; }
+const toNum = (v) => (v == null || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
+const fmtKwhOrBlank = (n) => (n == null ? '' : fmtKwh(n));
+
+// A net cell: credit (+, green) when negative, spend (amber) when positive.
+function netCell(val) {
+  if (val == null) return `<td><span class="bt-amt tnum">—</span></td>`;
   const credit = val < -0.005;
-  el.textContent = credit ? '+' + fmtMoney(-val) : fmtMoney(val);
-  el.className = 'net-val tnum ' + (credit ? 'credit' : 'spend');
+  const txt = credit ? '+' + fmtMoney(-val) : fmtMoney(val);
+  return `<td class="${credit ? 'bt-net-credit' : 'bt-net-spend'}"><span class="bt-amt tnum">${txt}</span></td>`;
 }
 
 function relativeOrState(id) {

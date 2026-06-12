@@ -52,6 +52,8 @@ show "EV charger (Ohme)"  'ohme'
 show "Octopus / Intelligent Go" 'octopus'
 show "Solar/Battery/Grid (Sigen — may be empty until Modbus opens)" 'sigen'
 show "Climate (heat pump)" '^climate\.'
+show "Statistics sources (multi-period budget / HP cost — ENTITIES.stats)" \
+     'accumulative|daily_electrical|pv_energy|ohme_home_pro_energy'
 show "Temperature sensors" 'temperature'
 show "Humidity sensors"    'humidity'
 show "Server health"       'server'
@@ -60,3 +62,6 @@ show "Backups"             'backup'
 
 echo
 echo "Tip:  $0 all   # to dump every entity_id"
+echo "Note: ENTITIES.stats ids must RECORD long-term statistics (they appear in"
+echo "      HA → Developer Tools → Statistics, or the Energy dashboard). The"
+echo "      multi-period budget sums their per-day change via the WebSocket API."
