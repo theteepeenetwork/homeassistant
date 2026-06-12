@@ -14,7 +14,7 @@
 # =============================================================================
 set -euo pipefail
 
-URL="${HA_URL:-http://dashboard.home}"
+URL="${HA_URL:-http://wallboard.home}"
 TOKEN="${HA_TOKEN:-}"
 
 auth=()
@@ -50,9 +50,6 @@ echo "Confirm these against config.js, then edit ids that don't match."
 show "Weather"            'weather\.'
 show "EV charger (Ohme)"  'ohme'
 show "Octopus / Intelligent Go" 'octopus'
-show "Budget: accumulative cost/consumption" 'accumulative'
-show "Budget: EXPORT meter (note its serial/MPAN)" '_export_'
-show "Budget: cost trackers" 'cost_tracker'
 show "Solar/Battery/Grid (Sigen — may be empty until Modbus opens)" 'sigen'
 show "Climate (heat pump)" '^climate\.'
 show "Temperature sensors" 'temperature'
