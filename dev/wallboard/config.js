@@ -119,7 +119,7 @@ export const ENTITIES = {
 
   // ---- Multi-period statistics — VERIFY ALL IDS -----------------------------
   //  Read via HA long-term statistics (ha.getStatistics, WebSocket) and bucketed
-  //  in ui.js into yesterday / this week / last week / month / year. Each id
+  //  in ui.js into yesterday / month-to-date / year-to-date. Each id
   //  MUST be a CUMULATIVE sensor that records long-term statistics (i.e. shows
   //  up in the HA Energy dashboard / Developer Tools → Statistics) so its
   //  per-day `change` is meaningful. Confirm the real ids on the server:

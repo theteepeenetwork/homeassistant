@@ -71,10 +71,10 @@ html, body {
 .wx-cond { font-size: 22px; color: var(--fg-dim); text-transform: capitalize; }
 .wx-hilo { font-size: 20px; color: var(--fg-mute); margin-top: 4px; }
 
-.wx-forecast { display: flex; gap: 18px; }
+.wx-forecast { display: flex; gap: 10px; }
 .wx-day {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
-  min-width: 78px; padding: 10px 8px; background: var(--bg-card-2);
+  min-width: 66px; padding: 10px 6px; background: var(--bg-card-2);
   border-radius: 12px;
 }
 .wx-day .d-name { font-size: 16px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: .5px; }
@@ -182,13 +182,17 @@ html, body {
 .card-budget { flex: 1; }
 .budget-grid { flex: 1; min-height: 0; }
 
-/* period × metric table: label column + 5 period columns */
+/* period × metric table: label column + 3 period columns (yest · MTD · YTD) */
 .budget-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .budget-table th, .budget-table td { text-align: right; padding: 9px 6px; }
 .budget-table thead th {
   font-size: 13px; font-weight: 600; color: var(--fg-mute);
   text-transform: uppercase; letter-spacing: .5px;
   border-bottom: 1px solid var(--line); padding-bottom: 6px;
+}
+.budget-table thead th em {
+  display: block; font-style: normal; font-weight: 500;
+  font-size: 11px; color: var(--fg-mute); letter-spacing: .3px;
 }
 .budget-table .bt-corner { width: 96px; }
 .budget-table tbody tr { border-bottom: 1px solid var(--line); }

@@ -26,31 +26,24 @@ function hasStats() { return Object.keys(statsData).length > 0; }
 // ---- Period windows ---------------------------------------------------------
 //  All budget figures are aligned to COMPLETED days (grid cost is only final
 //  ~24h late), so every window ends at local midnight today (today excluded).
-//  Order here is also the column order in the budget table.
+//  Three columns: yesterday, month-to-date, year-to-date. Order here is also
+//  the column order in the budget table.
 const PERIODS = [
-  { key: 'yesterday', label: 'Yest' },
-  { key: 'thisWeek',  label: 'This wk' },
-  { key: 'lastWeek',  label: 'Last wk' },
-  { key: 'month',     label: 'Month' },
-  { key: 'year',      label: 'Year' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'month',     label: 'Month', sub: 'to date' },
+  { key: 'year',      label: 'Year',  sub: 'to date' },
 ];
 
 function periodWindows(now = new Date()) {
   const dayMs = 86400000;
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  // Monday-start week (en-GB): JS getDay() Sun=0..Sat=6 -> days since Monday.
-  const dow = new Date(todayStart).getDay();
-  const sinceMon = (dow + 6) % 7;
-  const weekStart = todayStart - sinceMon * dayMs;
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const yearStart = new Date(now.getFullYear(), 0, 1).getTime();
   const mk = (start, end) => ({ start, end, days: Math.max(0, Math.round((end - start) / dayMs)) });
   return {
     yesterday: mk(todayStart - dayMs, todayStart),
-    thisWeek:  mk(weekStart, todayStart),
-    lastWeek:  mk(weekStart - 7 * dayMs, weekStart),
-    month:     mk(monthStart, todayStart),
-    year:      mk(yearStart, todayStart),
+    month:     mk(monthStart, todayStart),  // month-to-date (today excluded)
+    year:      mk(yearStart, todayStart),   // year-to-date (today excluded)
     todayStart,
   };
 }
@@ -89,8 +82,8 @@ export function statsQuery() {
   const S = ENTITIES.stats || {};
   const ids = Array.from(new Set(Object.values(S).filter(Boolean)));
   const w = periodWindows();
-  // Earliest start across all periods (last-week can precede year-start in early Jan).
-  const start = Math.min(w.lastWeek.start, w.year.start);
+  // Earliest start across all periods (yesterday can precede year-start on Jan 1).
+  const start = Math.min(w.yesterday.start, w.year.start);
   return { ids, start: new Date(start).toISOString(), end: new Date(w.todayStart).toISOString() };
 }
 
@@ -143,8 +136,8 @@ function renderHeader() {
   $('wx-temp').textContent = fmtTemp(temp);
   $('wx-cond').textContent = cond ? cond.replace(/-/g, ' ') : '—';
 
-  // Today hi/lo + 3-day chips come from the daily forecast (slow timer).
-  const days = forecastData.slice(0, 4);
+  // Today hi/lo + 7-day chips come from the daily forecast (slow timer).
+  const days = forecastData.slice(0, 8);
   if (days.length) {
     const today = days[0];
     const hi = today.temperature ?? today.native_temperature;
@@ -152,7 +145,7 @@ function renderHeader() {
     $('wx-hilo').textContent = `H ${fmtTemp(hi)}   L ${fmtTemp(lo)}`;
 
     const fc = $('wx-forecast');
-    fc.innerHTML = days.slice(1, 4).map((d) => {
+    fc.innerHTML = days.slice(1, 8).map((d) => {
       const name = new Date(d.datetime).toLocaleDateString(CONFIG.locale, { weekday: 'short' });
       const dhi = d.temperature ?? d.native_temperature;
       const dlo = d.templow ?? d.native_templow;
@@ -383,7 +376,7 @@ function collectUsedEntityIds() {
 }
 
 // ---- Running budget ---------------------------------------------------------
-//  A period × metric table (yesterday · this week · last week · month · year).
+//  A period × metric table (yesterday · month-to-date · year-to-date).
 //  Figures come from HA long-term statistics (ha.getStatistics, bucketed per
 //  period). The "yesterday" column also falls back to the live previous-day
 //  budget.* sensors, so it still works before statistics/WS are wired.
@@ -433,7 +426,7 @@ function renderBudget() {
 
   // Render the table.
   const head = `<tr><th class="bt-corner"></th>${
-    PERIODS.map((p) => `<th>${p.label}</th>`).join('')}</tr>`;
+    PERIODS.map((p) => `<th>${p.label}${p.sub ? `<em>${p.sub}</em>` : ''}</th>`).join('')}</tr>`;
 
   const cell = (main, sub, cls = '') =>
     `<td class="${cls}"><span class="bt-amt tnum">${main}</span>${
