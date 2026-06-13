@@ -7,10 +7,23 @@ REST API through Caddy (which injects the token server-side, so the browser
 never sees it), shows last-known values with a "stale" indicator if HA blips,
 and silently reloads once a day as memory-leak insurance.
 
+### Look: "Ambient Reticle" HUD
+
+The board uses a JARVIS-class holographic theme: a central energy **reactor**
+(SOLAR ▸ HOME ◂ GRID ▸ EV CAR, with the home battery on the right and animated
+power-flow lines), the full budget matrix, and a bottom band of heat-pump /
+rooms / solar-to-date. The whole board **breathes with live solar generation** —
+as PV power climbs toward ~8 kW the reactor floods from calm night-blue to vivid
+green-cyan, the aura swells and the flow lines speed up; the heat-pump module
+separately flushes amber→red as the day's heating cost rises. Those two
+thresholds live at the top of `ui.js` (`SOLAR_PEAK_KW`, `HEAT_COSTLY_GBP`).
+The EV charger band fills the vehicle battery and animates a charge-sweep + a
+grid→EV flow only while the car is actually drawing power.
+
 ```
 dev/wallboard/
-├── index.html            # static layout: header / energy / climate / server / footer
-├── style.css             # dark 1080p grid, flow + gauge animations, night dim
+├── index.html            # static HUD layout: header / reactor+budget / heat·rooms·solar / footer
+├── style.css             # holographic HUD theme, reticle + flow animations, reactive mood vars, night dim
 ├── config.js             # ★ ENTITIES map + CONFIG — the only file you edit to re-wire
 ├── ha.js                 # data layer: poll /api/states, cache, backoff, staleness, forecast
 ├── ui.js                 # render(): pure function of the cache -> DOM

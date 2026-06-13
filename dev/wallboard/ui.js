@@ -96,8 +96,9 @@ export function statsQuery() {
   return { ids, start: new Date(start).toISOString(), end: new Date(w.todayStart).toISOString() };
 }
 
-const EV_MAX_KW = 7.4;       // Ohme single-phase ceiling, for the gauge scale
 const FLOW_MIN_W = 20;       // ignore sub-20W noise so flow lines don't flicker
+const SOLAR_PEAK_KW = 8;     // a really sunny day maxes ~8 kW -> board fully energizes
+const HEAT_COSTLY_GBP = 6;   // today's heating £ that reads as an "expensive" day (heat module -> red)
 
 // ---- formatting helpers -----------------------------------------------------
 const round = (n, d = 0) => (n == null ? null : Number(n).toFixed(d));
@@ -130,6 +131,35 @@ function powerW(id) {
   if (u === 'kw') return n * 1000;
   if (u === 'mw') return n * 1e6;
   return n; // assume already watts
+}
+
+// =============================================================================
+//  Reactive mood — the board "breathes" with live solar generation
+// -----------------------------------------------------------------------------
+//  Writes CSS custom properties onto #screen; everything keyed off them (the
+//  reactor glow, aura, flow speed, solar line) transitions from calm night-blue
+//  to vivid full-sun green-cyan. The heat-pump module separately flushes
+//  amber->red as today's heating cost climbs. Mirrors the design's energize
+//  curve, but driven by the real PV-power and heat-cost sensors.
+// =============================================================================
+function applyMood() {
+  const screen = $('screen');
+  if (!screen) return;
+
+  const solarW = powerW(ENTITIES.sigen.solarPower);
+  const solarKw = solarW == null ? 0 : solarW / 1000;
+  const t = Math.max(0, Math.min(1, solarKw / SOLAR_PEAK_KW));
+  const H = (232 - 70 * t).toFixed(0);   // hue: steel-blue (232) -> green-cyan (162)
+  screen.style.setProperty('--glow', `oklch(${(0.74 + 0.08 * t).toFixed(3)} ${(0.09 + 0.09 * t).toFixed(3)} ${H})`);
+  screen.style.setProperty('--glow-strong', `oklch(0.900 ${(0.07 + 0.10 * t).toFixed(3)} ${H})`);
+  screen.style.setProperty('--aura', (0.14 + 0.48 * t).toFixed(3));
+  screen.style.setProperty('--flow-dur', `${(3.2 - 2.4 * t).toFixed(2)}s`);
+  screen.style.setProperty('--solar-op', (0.12 + 0.88 * t).toFixed(3));
+
+  const rate = (CONFIG.heatPump && CONFIG.heatPump.blendedRatePerKwh) || 0;
+  const heatToday = ha.getNumber(ENTITIES.climate.elecDaily && ENTITIES.climate.elecDaily[0]);
+  const ht = Math.max(0, Math.min(1, ((heatToday || 0) * rate) / HEAT_COSTLY_GBP));
+  screen.style.setProperty('--heat', `oklch(${(0.82 - 0.10 * ht).toFixed(3)} ${(0.10 + 0.13 * ht).toFixed(3)} ${(85 - 55 * ht).toFixed(0)})`);
 }
 
 // =============================================================================
@@ -222,9 +252,10 @@ function renderEnergy() {
 
 function setNode(textId, value, availId) {
   const el = $(textId);
+  if (!el) return;
   el.textContent = value;
-  const node = el.closest('.node');
-  if (node) node.classList.toggle('dim', !ha.isAvailable(availId));
+  // No wrapping <g> in the reticle SVG — dim the value text itself.
+  el.classList.toggle('dim', !ha.isAvailable(availId));
 }
 
 function flowLine(id, active, cls, reverse) {
@@ -238,26 +269,33 @@ function flowLine(id, active, cls, reverse) {
 function renderEV() {
   const E = ENTITIES.ev, O = ENTITIES.octopus;
 
-  // Status badge
+  // Status badge + charging state (drives the band's bolt/sweep animations)
   const status = ha.getState(E.status) || '—';
+  const charging = status === 'charging';
   const badge = $('ev-status');
   badge.textContent = status.replace(/_/g, ' ');
-  badge.className = 'badge ' + ({
+  badge.className = 'badge ev-status-pill ' + ({
     charging: 'badge-ok',
     plugged_in: 'badge-warn',
     pending_approval: 'badge-warn',
     finished: 'badge-info',
   }[status] || '');
+  const card = badge.closest('.card-ev');
+  if (card) card.classList.toggle('charging', charging);
 
-  // Power gauge
+  // Charge power -> the "Power" readout and the EV CAR reactor node
   const kw = ha.getNumber(E.power);
-  const pct = kw == null ? 0 : Math.max(0, Math.min(100, (kw / EV_MAX_KW) * 100));
-  const g = $('ev-gauge');
-  g.setAttribute('stroke-dasharray', `${pct} ${100 - pct}`);
-  g.style.stroke = status === 'charging' ? 'var(--green)' : 'var(--fg-mute)';
   $('ev-power').textContent = kw == null ? '— kW' : `${kw.toFixed(1)} kW`;
+  setText('evcar-val', kw == null ? '—' : kw.toFixed(1));
+  // Grid -> EV flow animates only while the car is actually drawing power.
+  flowLine('flow-ev', charging && (kw || 0) > 0.1, 'ev', false);
 
-  $('ev-veh').textContent = fmtPct(ha.getNumber(E.vehicleBatt));
+  // Vehicle battery fill (animated while charging)
+  const veh = ha.getNumber(E.vehicleBatt);
+  const vehPct = veh == null ? 0 : Math.max(0, Math.min(100, veh));
+  const fill = $('ev-veh-fill'); if (fill) fill.style.width = `${vehPct}%`;
+  setText('ev-veh-pct', fmtPct(veh));
+
   $('ev-kwh').textContent = (() => {
     const n = ha.getNumber(E.energy);
     return n == null ? '—' : `${n.toFixed(2)} kWh`;
@@ -637,4 +675,5 @@ export function render() {
   safe('budget',  renderBudget);
   safe('solar',   renderSolarHistory);
   safe('footer',  renderFooter);
+  safe('mood',    applyMood);
 }
