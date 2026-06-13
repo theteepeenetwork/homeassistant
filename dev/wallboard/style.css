@@ -1,260 +1,398 @@
 /* =============================================================================
-   style.css — 1920x1080 dark wallboard
-   - Fixed canvas, no scrolling, no overflow.
-   - High contrast, large tabular numerals, glanceable from across a room.
-   - Calm motion only (slow energy-flow dashes). Nothing flickers.
+   style.css — Wallboard "Ambient Reticle" HUD
+   -----------------------------------------------------------------------------
+   A JARVIS-class holographic control board for a fixed 1920×1080 Pi kiosk.
+   The whole board "breathes" with live solar generation: ui.js writes the
+   reactive custom properties (--glow / --glow-strong / --aura / --flow-dur /
+   --solar-op / --heat) onto #screen, and everything keyed off them shifts from
+   calm night-blue to vivid full-sun green-cyan. Nothing here is created or
+   destroyed at runtime, so CSS animations never restart and nothing leaks.
    ========================================================================== */
 
+/* ---- tokens --------------------------------------------------------------- */
 :root {
-  --bg:        #0b0d10;
-  --bg-card:   #14181d;
-  --bg-card-2: #1a1f26;
-  --line:      #262d36;
-  --fg:        #e8edf2;
-  --fg-dim:    #8a96a3;
-  --fg-mute:   #5b6672;
+  --bg:        #03060c;
+  --fg:        #cfeeff;
+  --fg-bright: #eaf8ff;
+  --fg-head:   #7fd4f5;
+  --fg-mute:   #6f93ab;
+  --fg-mono:   #5f8aa3;
 
-  --accent:    #38bdf8;   /* primary accent (cyan) */
-  --green:     #34d399;   /* charging / ok / up */
-  --amber:     #fbbf24;   /* importing / warn */
-  --teal:      #2dd4bf;   /* exporting */
-  --red:       #f87171;   /* down / fault */
-  --yellow:    #facc15;   /* solar */
+  --cyan:  #4fd6ff;
+  --green: #46f0a8;
+  --green-bright: #5cffb0;
+  --gold:  #f3c12e;
+  --amber: #ffc24d;
 
-  --gap: 18px;
-  --radius: 16px;
+  --disp: 'Orbitron', sans-serif;       /* display + numbers */
+  --body: 'Rajdhani', sans-serif;        /* labels + body */
+  --mono: 'Share Tech Mono', monospace;  /* telemetry subs */
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); }
+body {
+  font-family: var(--body);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+.tnum { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
 
-html, body {
+/* ---- the board ------------------------------------------------------------ */
+#screen {
+  position: fixed;
+  inset: 0;
   width: 1920px;
   height: 1080px;
   overflow: hidden;
-  background: var(--bg);
   color: var(--fg);
-  font-family: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  font-family: var(--body);
+  background: radial-gradient(circle at 32% 50%, #0c2334 0%, #06101c 56%, #03080f 100%);
+
+  /* reactive mood defaults (ui.js overrides live) */
+  --glow:        #4fd6ff;
+  --glow-strong: #cfefff;
+  --aura:        .30;
+  --flow-dur:    2s;
+  --solar-op:    .55;
+  --heat:        #ffc24d;
+
+  --night-brightness: 1;
+  transition: filter 1.2s ease;
+}
+#screen.night { filter: brightness(var(--night-brightness)); }
+
+/* faint engineering grid */
+.hud-grid {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(79,214,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79,214,255,.03) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+/* big soft glow centred on the reactor — swells with the sun */
+.hud-aura {
+  position: absolute; left: 33%; top: 52%;
+  width: 760px; height: 760px; transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--glow), transparent 62%);
+  opacity: var(--aura);
+  filter: blur(55px);
+  pointer-events: none;
+  transition: opacity 1.1s ease, background .9s ease;
+}
+/* corner targeting brackets */
+.hud-bracket { position: absolute; width: 34px; height: 34px; pointer-events: none; }
+.hud-bracket.tl { top: 16px; left: 16px;  border-top: 2px solid rgba(79,214,255,.5); border-left: 2px solid rgba(79,214,255,.5); }
+.hud-bracket.tr { top: 16px; right: 16px; border-top: 2px solid rgba(79,214,255,.5); border-right: 2px solid rgba(79,214,255,.5); }
+.hud-bracket.br { bottom: 16px; right: 16px; border-bottom: 2px solid rgba(79,214,255,.5); border-right: 2px solid rgba(79,214,255,.5); }
+
+.hud-inner {
+  position: absolute; inset: 0;
+  padding: 30px 38px 18px;
+  display: flex; flex-direction: column; gap: 16px;
 }
 
-.tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
-
-/* Night dim: applied to the whole screen via class toggle */
-#screen {
-  width: 1920px;
-  height: 1080px;
-  display: grid;
-  grid-template-rows: 140px 1fr 40px;
-  gap: var(--gap);
-  padding: var(--gap);
-  transition: filter 2s ease;
-}
-#screen.night { filter: brightness(var(--night-brightness, 0.55)); }
-
-/* ============================== HEADER ================================== */
+/* ===========================================================================
+   HEADER
+   ======================================================================== */
 #header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--bg-card);
-  border-radius: var(--radius);
-  padding: 0 36px;
+  flex: none;
+  display: flex; justify-content: space-between; align-items: flex-start;
 }
-.clock { font-size: 92px; font-weight: 700; line-height: 1; letter-spacing: -2px; }
-.date  { font-size: 24px; color: var(--fg-dim); margin-top: 6px; }
+.clock {
+  font: 800 80px var(--disp); line-height: .84; color: var(--fg-bright);
+  text-shadow: 0 0 30px rgba(79,214,255,.55);
+}
+.date {
+  margin-top: 8px;
+  font: 500 18px var(--body); letter-spacing: 6px; text-transform: uppercase;
+  color: var(--fg-mute);
+}
+.weather-block { display: flex; align-items: center; gap: 20px; }
+.weather-now { display: flex; align-items: center; gap: 14px; }
+.wx-icon { width: 64px; height: 56px; color: var(--cyan); }
+.wx-icon svg { width: 100%; height: 100%; }
+.wx-now-text { text-align: right; }
+.wx-temp { font: 800 56px var(--disp); line-height: .85; color: var(--fg-bright); }
+.wx-cond { font: 600 15px var(--body); letter-spacing: 2px; text-transform: uppercase; color: #9fd8f2; }
+.wx-hilo { font: 400 13px var(--mono); color: var(--fg-mono); margin-top: 2px; }
 
-.weather-block { display: flex; align-items: center; gap: 40px; }
-.weather-now { display: flex; align-items: center; gap: 20px; }
-.wx-icon { width: 96px; height: 96px; color: var(--accent); }
-.wx-temp { font-size: 64px; font-weight: 700; line-height: 1; }
-.wx-cond { font-size: 22px; color: var(--fg-dim); text-transform: capitalize; }
-.wx-hilo { font-size: 20px; color: var(--fg-mute); margin-top: 4px; }
-
-.wx-forecast { display: flex; gap: 10px; }
+.wx-forecast { display: flex; gap: 7px; }
 .wx-day {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  min-width: 66px; padding: 10px 6px; background: var(--bg-card-2);
-  border-radius: 12px;
+  text-align: center; min-width: 58px;
+  border: 1px solid rgba(79,214,255,.22); border-radius: 6px;
+  padding: 7px 9px; background: rgba(10,28,42,.5);
 }
-.wx-day .d-name { font-size: 16px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: .5px; }
-.wx-day .d-icon { width: 34px; height: 34px; color: var(--accent); }
-.wx-day .d-hilo { font-size: 17px; }
-.wx-day .d-hi { font-weight: 600; }
-.wx-day .d-lo { color: var(--fg-mute); }
+.wx-day .d-name { font: 600 12px var(--body); letter-spacing: 1px; text-transform: uppercase; color: var(--fg-head); }
+.wx-day .d-icon { height: 22px; margin: 2px 0; color: #9fd8f2; }
+.wx-day .d-icon svg { width: 22px; height: 22px; }
+.wx-day .d-hilo { font: 700 15px var(--disp); color: var(--fg-bright); }
+.wx-day .d-hi { color: var(--fg-bright); }
+.wx-day .d-lo { color: var(--fg-mono); font-size: 11px; margin-left: 3px; }
 
-/* =============================== MAIN ================================== */
-#main {
-  display: grid;
-  grid-template-columns: 1.45fr 1fr 1fr;
-  gap: var(--gap);
-  min-height: 0;
-}
-.col { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
-
+/* ===========================================================================
+   CARDS (shared chrome)
+   ======================================================================== */
 .card {
-  background: var(--bg-card);
-  border-radius: var(--radius);
-  padding: 18px 22px;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+  position: relative;
+  background: linear-gradient(160deg, rgba(16,40,60,.55), rgba(7,16,26,.5));
+  border: 1px solid rgba(79,214,255,.28);
+  border-radius: 8px;
+  padding: 16px 20px;
+  display: flex; flex-direction: column; min-height: 0;
 }
 .card-title {
-  font-size: 20px; font-weight: 600; color: var(--fg-dim);
-  text-transform: uppercase; letter-spacing: 1px;
-  display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+  flex: none;
+  display: flex; align-items: center; gap: 10px;
+  font: 600 19px var(--body); letter-spacing: 3px; text-transform: uppercase;
+  color: var(--fg-head);
 }
+.diamond {
+  width: 7px; height: 7px; transform: rotate(45deg);
+  background: var(--glow); box-shadow: 0 0 8px var(--glow); flex: none;
+  transition: background .8s ease, box-shadow .8s ease;
+}
+.diamond.green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.diamond.gold  { background: var(--gold);  box-shadow: 0 0 8px var(--gold); }
+.diamond.heat  { background: var(--heat);  box-shadow: 0 0 8px var(--heat); }
+.live-tag { margin-left: auto; font: 400 12px var(--mono); color: var(--green); }
+.heat-tag { margin-left: auto; font: 600 11px var(--mono); color: #f6b96a; }
+
+/* badges */
 .badge {
-  font-size: 14px; font-weight: 600; letter-spacing: .5px;
-  padding: 3px 10px; border-radius: 999px;
-  background: var(--bg-card-2); color: var(--fg-dim); text-transform: none;
+  font: 600 11px var(--mono); letter-spacing: 1px;
+  color: var(--fg-head);
+  border: 1px solid rgba(79,214,255,.4); border-radius: 999px;
+  padding: 3px 11px; text-transform: uppercase; white-space: nowrap;
 }
-.badge-ok   { background: rgba(52,211,153,.15); color: var(--green); }
-.badge-warn { background: rgba(251,191,36,.15);  color: var(--amber); }
-.badge-bad  { background: rgba(248,113,113,.15); color: var(--red); }
-.badge-info { background: rgba(56,189,248,.15);  color: var(--accent); }
+.badge-ok   { color: var(--green); border-color: rgba(70,240,168,.5); }
+.badge-warn { color: var(--amber); border-color: rgba(255,194,77,.45); }
+.badge-info { color: var(--cyan);  border-color: rgba(79,214,255,.45); }
 
-/* ---- Energy column ---- */
-.card-flow { flex: 1.3; }
-.flow-svg { width: 100%; height: 100%; flex: 1; }
+/* ===========================================================================
+   MAIN — reactor + budget
+   ======================================================================== */
+#main {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: 1.25fr 1fr; gap: 20px;
+}
+.col { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+.col-energy { min-height: 0; }
 
-.flow-base { stroke: var(--line); stroke-width: 6; stroke-linecap: round; }
+/* ---- reactor card --------------------------------------------------------- */
+.card-flow { flex: 1; min-height: 0; }
+.flow-wrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.flow-svg { width: 94%; height: 100%; overflow: visible; }
+
+/* reticle rings */
+.reticle { fill: none; }
+.reticle.dots  { stroke: rgba(79,214,255,.14); stroke-width: 1.5; stroke-dasharray: 2 16; }
+.reticle.spin  { stroke: rgba(79,214,255,.34); stroke-width: 1.5; stroke-dasharray: 40 24;
+                 transform-box: fill-box; transform-origin: center; animation: hudspin 120s linear infinite; }
+.reticle.spinr { stroke: rgba(79,214,255,.20); stroke-width: 1;   stroke-dasharray: 14 22;
+                 transform-box: fill-box; transform-origin: center; animation: hudspinr 90s linear infinite; }
+
+/* HOME core */
+.core-fill { fill: url(#coreGC); animation: hudpulse 4s ease-in-out infinite; }
+.core-edge { fill: none; stroke: var(--glow-strong); stroke-width: 1.5; transition: stroke .8s ease; }
+.core-label { fill: #04121c; font: 700 19px var(--body); letter-spacing: 4px; text-anchor: middle; }
+.core-val   { fill: #04121c; font: 800 26px var(--disp); text-anchor: middle; }
+
+/* nodes */
+.node-bg { fill: rgba(7,18,28,.92); stroke: var(--glow); stroke-width: 1.5; transition: stroke .8s ease; }
+.node-bg.node-ev { stroke: var(--green); filter: drop-shadow(0 0 6px rgba(70,240,168,.4)); }
+.node-label { fill: var(--fg-head); font: 600 13px var(--body); letter-spacing: 2px; text-anchor: middle; }
+.node-val   { fill: var(--fg-bright); font: 700 15px var(--disp); text-anchor: middle; }
+.node-val.node-ev-val { fill: var(--green); font-size: 14px; }
+#solar-val { fill: var(--glow-strong); }
+.flow-svg text.dim { opacity: .4; }
+
+/* battery SOC ring */
+.ring-track { fill: none; stroke: rgba(79,214,255,.18); stroke-width: 4; }
+.ring-prog  { fill: none; stroke: var(--green); stroke-width: 4; stroke-linecap: round;
+              filter: drop-shadow(0 0 5px var(--green)); transition: stroke-dasharray .6s ease; }
+
+/* flow lines — invisible until JS marks them .active */
 .flow-line {
-  stroke-width: 6; stroke-linecap: round; fill: none;
-  stroke-dasharray: 2 16; stroke-dashoffset: 0;
-  opacity: 0; transition: opacity .6s ease;
+  stroke: var(--glow); stroke-width: 3.5; stroke-dasharray: 6 9;
+  opacity: 0; filter: drop-shadow(0 0 6px var(--glow));
 }
-.flow-line.active { opacity: 1; animation: flow 1.4s linear infinite; }
+.flow-line.active {
+  opacity: 1;
+  animation: huddash var(--flow-dur, 2s) linear infinite;
+}
+#flow-solar.active { opacity: var(--solar-op, .6); }
+.flow-line.import, .flow-line.solar { stroke: var(--glow); filter: drop-shadow(0 0 6px var(--glow)); }
+.flow-line.export, .flow-line.charge, .flow-line.ev,
+.flow-line.discharge { stroke: var(--green); filter: drop-shadow(0 0 6px var(--green)); }
 .flow-line.reverse { animation-direction: reverse; }
-.flow-line.solar { stroke: var(--yellow); }
-.flow-line.import { stroke: var(--amber); }
-.flow-line.export { stroke: var(--teal); }
-.flow-line.charge { stroke: var(--green); }
-.flow-line.discharge { stroke: var(--accent); }
-@keyframes flow { to { stroke-dashoffset: -18; } }
 
-.node-bg { fill: var(--bg-card-2); stroke: var(--line); stroke-width: 2; }
-.node-home { fill: #11151a; stroke: var(--accent); stroke-width: 2.5; }
-.node-label { fill: var(--fg-mute); font-size: 13px; font-weight: 600; letter-spacing: 1px; text-anchor: middle; }
-.node-val   { fill: var(--fg); font-size: 22px; font-weight: 700; text-anchor: middle; }
+/* ---- EV charger band ------------------------------------------------------ */
+.card-ev {
+  flex: none;
+  background: linear-gradient(160deg, rgba(12,32,30,.55), rgba(7,16,26,.5));
+  border-color: rgba(70,240,168,.32);
+  box-shadow: inset 0 0 26px rgba(70,240,168,.05);
+  gap: 10px;
+}
+.ev-title { color: var(--fg-head); }
+.ev-car-icon { color: var(--fg-head); margin-left: 2px; flex: none; }
+.ev-status-pill { margin-left: auto; color: var(--green); border-color: rgba(70,240,168,.45); }
+.ev-body { display: flex; align-items: center; gap: 22px; }
 
-.ring-track { fill: var(--bg-card-2); stroke: var(--line); stroke-width: 6; }
-.ring-prog  { fill: none; stroke: var(--green); stroke-width: 6; stroke-linecap: round;
-              transition: stroke-dasharray .8s ease, stroke .8s ease; }
+.ev-veh-block { flex: none; display: flex; flex-direction: column; gap: 5px; }
+.ev-veh-lbl { font: 600 11px var(--body); letter-spacing: 2px; text-transform: uppercase; color: var(--green); }
+.ev-veh-row { display: flex; align-items: center; gap: 8px; }
+.ev-bolt { animation: boltpulse 1.4s ease-in-out infinite; opacity: 0; }
+.charging .ev-bolt { opacity: 1; }
+.ev-veh-cell {
+  position: relative; width: 128px; height: 54px;
+  border: 2.5px solid rgba(70,240,168,.55); border-radius: 9px;
+  overflow: hidden; background: rgba(5,14,22,.8);
+}
+.ev-veh-fill {
+  position: absolute; top: 4px; bottom: 4px; left: 4px;
+  background: linear-gradient(90deg, #1f9d6b, var(--green));
+  border-radius: 5px; box-shadow: 0 0 12px rgba(70,240,168,.5);
+  transition: width .8s ease;
+}
+.ev-veh-sweep {
+  position: absolute; top: 0; bottom: 0; left: 0; width: 36px;
+  background: linear-gradient(90deg, transparent, rgba(207,239,255,.55), transparent);
+  opacity: 0;
+}
+.charging .ev-veh-sweep { opacity: 1; animation: chargewave 2s linear infinite; }
+.ev-veh-pct {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font: 800 26px var(--disp); color: var(--fg-bright);
+}
+.ev-veh-cap { width: 6px; height: 22px; background: rgba(70,240,168,.55); border-radius: 0 3px 3px 0; margin-left: -2px; }
 
-/* ---- EV panel ---- */
-.card-ev { flex: 1; }
-.ev-body { display: flex; gap: 20px; align-items: center; flex: 1; min-height: 0; }
-.gauge { width: 230px; height: 138px; flex: none; }
-.gauge-track { fill: none; stroke: var(--line); stroke-width: 14; stroke-linecap: round; }
-.gauge-prog  { fill: none; stroke: var(--green); stroke-width: 14; stroke-linecap: round;
-               transition: stroke-dasharray .8s ease, stroke .8s ease; }
-.gauge-val   { fill: var(--fg); font-size: 26px; font-weight: 700; text-anchor: middle; }
+.ev-stats { flex: 1; display: flex; justify-content: space-between; }
+.ev-stats .stat { display: flex; flex-direction: column; gap: 2px; }
+.stat-lbl { font: 400 11px var(--body); letter-spacing: 1px; text-transform: uppercase; color: var(--fg-mute); }
+.stat-val { font: 700 20px var(--disp); color: var(--fg-bright); }
+.stat-val.green { color: var(--green); }
+#ev-mode { font: 600 16px var(--body); color: #9fd8f2; text-transform: capitalize; }
+#ev-rate { font-size: 18px; color: #9fd8f2; }
+#ev-power { color: var(--green); }
 
-.ev-stats { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; }
-.stat { display: flex; justify-content: space-between; align-items: baseline;
-        border-bottom: 1px solid var(--line); padding: 6px 0; }
-.stat-lbl { font-size: 17px; color: var(--fg-dim); }
-.stat-val { font-size: 24px; font-weight: 700; }
-.stat-sub .stat-val { font-size: 19px; font-weight: 600; color: var(--fg-dim); }
-
-/* ---- Climate column ---- */
-.card-hp { flex: none; }
-.hp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-.big-stat { background: var(--bg-card-2); border-radius: 12px; padding: 14px;
-            display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.big-val { font-size: 40px; font-weight: 700; line-height: 1; }
-.big-lbl { font-size: 15px; color: var(--fg-dim); text-align: center; }
-
-.card-rooms { flex: 1; }
-.rooms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start;
-              overflow: hidden; }
-.room { background: var(--bg-card-2); border-radius: 12px; padding: 12px 16px;
-        display: flex; flex-direction: column; gap: 2px; }
-.room .r-name { font-size: 16px; color: var(--fg-dim); }
-.room .r-vals { display: flex; align-items: baseline; gap: 14px; }
-.room .r-temp { font-size: 30px; font-weight: 700; }
-.room .r-hum  { font-size: 18px; color: var(--fg-mute); }
-.room-empty { color: var(--fg-mute); font-size: 18px; padding: 20px; }
-
-/* ---- Running budget column ---- */
-.card-budget { flex: 1; }
-.budget-grid { flex: 1; min-height: 0; }
-
-/* period × metric table: label column + 3 period columns (yest · MTD · YTD) */
+/* ===========================================================================
+   RUNNING BUDGET (table built by ui.js renderBudget)
+   ======================================================================== */
+.card-budget { flex: 1; min-height: 0; }
+.card-budget .badge { margin-left: auto; }
+.budget-grid { flex: 1; min-height: 0; margin-top: 8px; display: flex; }
 .budget-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.budget-table th, .budget-table td { text-align: right; padding: 9px 6px; }
 .budget-table thead th {
-  font-size: 13px; font-weight: 600; color: var(--fg-mute);
-  text-transform: uppercase; letter-spacing: .5px;
-  border-bottom: 1px solid var(--line); padding-bottom: 6px;
+  font: 600 12px var(--body); letter-spacing: 1px; text-transform: uppercase;
+  color: var(--fg-mute); text-align: right; padding: 0 0 6px; vertical-align: bottom;
 }
-.budget-table thead th em {
-  display: block; font-style: normal; font-weight: 500;
-  font-size: 11px; color: var(--fg-mute); letter-spacing: .3px;
-}
-.budget-table .bt-corner { width: 96px; }
-.budget-table tbody tr { border-bottom: 1px solid var(--line); }
-.bt-lbl { text-align: left; font-size: 17px; color: var(--fg-dim); font-weight: 500; }
-.bt-lbl em { font-style: normal; display: block; font-size: 12px; color: var(--fg-mute);
-             text-transform: uppercase; letter-spacing: .5px; }
-.budget-table td { vertical-align: baseline; }
-.bt-amt { display: block; font-size: 21px; font-weight: 700; line-height: 1.1; }
-.bt-sub { display: block; font-size: 12px; color: var(--fg-mute); }
-.bt-credit .bt-amt { color: var(--teal); }
-.bt-muted  .bt-amt { color: var(--fg-mute); font-weight: 600; font-size: 17px; }
+.budget-table thead th em { font-style: normal; display: block; font-size: 10px; color: var(--fg-mono); }
+.budget-table .bt-corner { width: 22%; }
+.budget-table tbody td  { text-align: right; padding: 7px 0; border-top: 1px solid rgba(79,214,255,.16); }
+.budget-table tbody th  { text-align: left;  padding: 7px 0; border-top: 1px solid rgba(79,214,255,.16);
+                          font: 500 16px var(--body); color: #9fd8f2; }
+.bt-lbl em { font-style: normal; font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+             color: var(--fg-mono); display: block; }
+.bt-amt { font: 700 21px var(--disp); color: var(--fg-bright); display: block; line-height: 1.05; }
+.bt-sub { font: 400 11px var(--mono); color: var(--fg-mono); display: block; }
+.bt-credit .bt-amt { color: var(--green); }
+.bt-muted  .bt-amt { font-size: 18px; color: var(--gold); }
 
-/* net rows: emphasised, boxed band */
-.bt-net { background: var(--bg-card-2); }
-.bt-net .bt-lbl { color: var(--fg); font-weight: 600; }
-.bt-net .bt-amt { font-size: 23px; font-weight: 800; }
-.bt-net-credit .bt-amt { color: var(--green); }
+/* net rows: lift onto a tinted strip */
+.budget-table tr.bt-net th, .budget-table tr.bt-net td {
+  border-top: none; padding-top: 9px; padding-bottom: 9px;
+  background: rgba(70,240,168,.07);
+}
+.budget-table tr.bt-net:last-child th, .budget-table tr.bt-net:last-child td { background: rgba(70,240,168,.1); }
+.budget-table tr.bt-net th { color: var(--fg-bright); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+.bt-net .bt-amt { font: 800 23px var(--disp); }
+.bt-net-credit .bt-amt { color: var(--green-bright); text-shadow: 0 0 14px rgba(70,240,168,.4); }
 .bt-net-spend  .bt-amt { color: var(--amber); }
 
-.budget-note { margin-top: auto; padding-top: 14px; font-size: 14px; color: var(--fg-mute); }
+.budget-note { flex: none; margin-top: 8px; font: 400 12px var(--mono); color: var(--fg-mono); }
 .budget-note em { font-style: normal; color: var(--green); }
 
-/* ---- Solar to-date card (Sigen portal history) ---- */
-.card-solar { flex: none; }
-.solar-hist { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.sh-col { background: var(--bg-card-2); border-radius: 12px; padding: 14px 16px; }
-.sh-label { font-size: 14px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: .5px; }
-.sh-pv { font-size: 34px; font-weight: 800; color: var(--yellow); line-height: 1.1; margin-top: 2px; }
-.sh-pv-cap { font-size: 13px; color: var(--fg-mute); margin-bottom: 8px; }
-.sh-rows { display: flex; flex-direction: column; gap: 4px; }
-.sh-rows > div { display: flex; justify-content: space-between; font-size: 17px;
-                 border-top: 1px solid var(--line); padding-top: 4px; }
-.sh-rows span:first-child { color: var(--fg-dim); font-size: 15px; }
-.sh-credit { color: var(--green); font-weight: 700; }
-.sh-spend  { color: var(--amber); font-weight: 700; }
-.sh-empty  { color: var(--fg-mute); font-size: 16px; padding: 12px 2px; }
-
-/* ---- Heat-pump cost strip ---- */
-.hp-costs { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
-.hp-cost {
-  display: flex; align-items: baseline; justify-content: space-between;
-  background: var(--bg-card-2); border-radius: 12px; padding: 10px 16px;
+/* ===========================================================================
+   BOTTOM BAND — heat pump · rooms · solar to-date
+   ======================================================================== */
+.band {
+  flex: none; height: 246px;
+  display: grid; grid-template-columns: 1.15fr .85fr 1.15fr; gap: 18px;
 }
-.hpc-lbl  { font-size: 17px; color: var(--fg-dim); }
-.hpc-vals { font-size: 22px; font-weight: 700; }
-.hpc-vals em { font-style: normal; font-size: 13px; font-weight: 500;
-               color: var(--fg-mute); text-transform: uppercase; letter-spacing: .5px; }
+.band .card { padding: 14px 18px; }
 
-/* "Awaiting" / unavailable visual state for whole nodes */
-.dim { opacity: .35; }
+/* heat pump */
+.card-hp { border-color: var(--heat); transition: border-color .9s ease; }
+.card-hp .card-title { color: #f6b96a; }
+.hp-grid { display: flex; justify-content: space-between; margin-top: 12px; }
+.big-stat { display: flex; flex-direction: column; }
+.big-val { font: 800 32px var(--disp); color: var(--fg-bright); line-height: 1; }
+.big-lbl { font: 400 11px var(--body); text-transform: uppercase; color: var(--fg-mute); margin-top: 2px; }
+.hp-costs { margin-top: auto; display: flex; flex-direction: column; gap: 7px; }
+.hp-cost { display: flex; justify-content: space-between; align-items: baseline;
+           border-top: 1px dotted rgba(79,214,255,.18); padding-top: 7px; }
+.hp-cost:first-child { border-top: none; padding-top: 0; }
+.hpc-lbl { font: 500 14px var(--body); text-transform: uppercase; color: #9fd8f2; }
+.hpc-vals { font: 700 17px var(--disp); color: var(--fg-bright); }
+.hpc-vals em { font: 400 11px var(--body); font-style: normal; color: var(--fg-mute); }
 
-/* =============================== FOOTER ================================= */
+/* rooms */
+.rooms-grid { display: flex; flex-direction: column; gap: 9px; margin-top: 12px; }
+.room { display: flex; justify-content: space-between; align-items: baseline;
+        border-bottom: 1px dotted rgba(79,214,255,.16); padding-bottom: 8px; }
+.rooms-grid .room:last-child { border-bottom: none; padding-bottom: 0; }
+.r-name { font: 500 16px var(--body); text-transform: uppercase; color: #9fd8f2; }
+.r-vals { display: flex; align-items: baseline; gap: 8px; }
+.r-temp { font: 800 34px var(--disp); color: var(--fg-bright); }
+.r-hum  { font: 700 16px var(--disp); color: var(--fg-head); }
+.room-empty { font: 400 13px var(--mono); color: var(--fg-mono); margin-top: 12px; }
+
+/* solar to-date */
+.card-solar .card-title { color: var(--fg-head); }
+.solar-hist { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 12px; flex: 1; }
+.sh-col { min-width: 0; }
+.sh-label { font: 500 12px var(--body); letter-spacing: 1px; text-transform: uppercase; color: var(--fg-mute); }
+.sh-pv { font: 800 30px var(--disp); color: var(--gold); line-height: 1; }
+.sh-pv-cap { font: 400 11px var(--body); text-transform: uppercase; color: var(--fg-mute); margin-top: 2px; }
+.sh-rows { margin-top: 8px; font: 400 12px var(--mono); display: flex; flex-direction: column; gap: 3px; }
+.sh-rows > div { display: flex; justify-content: space-between; }
+.sh-rows span:first-child { color: var(--fg-mute); }
+.sh-credit { color: var(--green); }
+.sh-spend  { color: var(--amber); }
+.sh-empty  { font: 400 13px var(--mono); color: var(--fg-mono); }
+
+/* ===========================================================================
+   FOOTER
+   ======================================================================== */
 #footer {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 28px; color: var(--fg-mute); font-size: 18px;
+  flex: none;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0 4px;
 }
-.live { display: flex; align-items: center; gap: 10px; }
-.live .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--fg-mute); }
-.live.ok .dot   { background: var(--green); box-shadow: 0 0 10px rgba(52,211,153,.6); }
-.live.stale .dot{ background: var(--amber); animation: pulse 1.6s ease-in-out infinite; }
-.live.down .dot { background: var(--red); animation: pulse 1.6s ease-in-out infinite; }
-.live.ok    { color: var(--green); }
-.live.stale { color: var(--amber); }
-.live.down  { color: var(--red); }
-@keyframes pulse { 50% { opacity: .35; } }
+.byline { font: 400 12px var(--mono); letter-spacing: 2px; color: #3f6378; }
+.foot-status { display: flex; align-items: center; gap: 18px; }
+.updated { font: 400 12px var(--mono); color: var(--fg-mono); }
+.live { display: flex; align-items: center; gap: 7px; font: 600 12px var(--mono); letter-spacing: 1px; text-transform: uppercase; }
+.live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-mute); box-shadow: 0 0 6px currentColor; }
+.live.ok    { color: var(--green); } .live.ok .dot    { background: var(--green); }
+.live.stale { color: var(--amber); } .live.stale .dot { background: var(--amber); }
+.live.down  { color: #ff6b6b; }      .live.down .dot  { background: #ff6b6b; }
+
+/* ===========================================================================
+   keyframes
+   ======================================================================== */
+@keyframes huddash   { to { stroke-dashoffset: -28; } }
+@keyframes hudspin   { to { transform: rotate(360deg); } }
+@keyframes hudspinr  { to { transform: rotate(-360deg); } }
+@keyframes hudpulse  { 0%,100% { opacity: .82; } 50% { opacity: 1; } }
+@keyframes chargewave{ 0% { transform: translateX(-70%); } 100% { transform: translateX(330%); } }
+@keyframes boltpulse { 0%,100% { opacity: .45; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.06); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .reticle.spin, .reticle.spinr, .core-fill, .flow-line.active,
+  .ev-bolt, .ev-veh-sweep { animation: none !important; }
+}

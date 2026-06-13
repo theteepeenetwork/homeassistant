@@ -4,186 +4,232 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=1920, height=1080, initial-scale=1" />
   <title>Wallboard</title>
+  <!-- HUD typefaces: Orbitron (display/numbers), Rajdhani (labels/body),
+       Share Tech Mono (telemetry subs). Self-host into vendor/ for a fully
+       offline kiosk; the CDN link is the no-setup default. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" href="data:," />
 </head>
 <body>
-  <!-- Night-dim wrapper: app.js toggles .night to apply CSS brightness -->
-  <div id="screen">
+  <!-- Night-dim wrapper + reactive-mood host: app.js toggles .night; ui.js sets
+       the --glow / --aura / --flow-dur / --solar-op / --heat custom properties
+       from live solar generation and heating cost (the board "breathes"). -->
+  <div id="screen" class="hud">
+    <div class="hud-grid" aria-hidden="true"></div>
+    <div class="hud-aura" aria-hidden="true"></div>
+    <span class="hud-bracket tl" aria-hidden="true"></span>
+    <span class="hud-bracket tr" aria-hidden="true"></span>
+    <span class="hud-bracket br" aria-hidden="true"></span>
 
-    <!-- ============================= HEADER ============================= -->
-    <header id="header">
-      <div class="clock-block">
-        <div id="clock" class="clock tnum">--:--</div>
-        <div id="date" class="date">—</div>
-      </div>
+    <div class="hud-inner">
 
-      <div class="weather-block">
-        <div class="weather-now">
-          <div id="wx-icon" class="wx-icon" aria-hidden="true"></div>
-          <div class="wx-now-text">
-            <div id="wx-temp" class="wx-temp tnum">--°</div>
-            <div id="wx-cond" class="wx-cond">—</div>
-            <div id="wx-hilo" class="wx-hilo tnum">H --° &nbsp; L --°</div>
-          </div>
-        </div>
-        <div id="wx-forecast" class="wx-forecast">
-          <!-- up to 7 day chips injected by JS -->
-        </div>
-      </div>
-    </header>
-
-    <!-- ============================== MAIN ============================== -->
-    <main id="main">
-
-      <!-- ---------- COLUMN 1: ENERGY (largest) ---------- -->
-      <section class="col col-energy">
-        <div class="card card-flow">
-          <div class="card-title">Energy
-            <span id="sigen-badge" class="badge badge-warn">awaiting Sigen</span>
-          </div>
-
-          <!-- Animated solar -> home -> battery / grid flow -->
-          <svg id="flow" class="flow-svg" viewBox="0 0 600 360" preserveAspectRatio="xMidYMid meet">
-            <!-- connection base lines -->
-            <line class="flow-base" x1="300" y1="96"  x2="300" y2="158"/>   <!-- solar->home -->
-            <line class="flow-base" x1="152" y1="210" x2="248" y2="210"/>   <!-- grid<->home -->
-            <line class="flow-base" x1="352" y1="210" x2="448" y2="210"/>   <!-- battery<->home -->
-
-            <!-- animated flow overlays (classes set by JS) -->
-            <line id="flow-solar" class="flow-line" x1="300" y1="96"  x2="300" y2="158"/>
-            <line id="flow-grid"  class="flow-line" x1="152" y1="210" x2="248" y2="210"/>
-            <line id="flow-batt"  class="flow-line" x1="352" y1="210" x2="448" y2="210"/>
-
-            <!-- SOLAR node -->
-            <g class="node" transform="translate(300,52)">
-              <circle class="node-bg" r="42"/>
-              <text class="node-label" y="-12">SOLAR</text>
-              <text id="solar-val" class="node-val tnum" y="14">—</text>
-            </g>
-
-            <!-- HOME node -->
-            <g class="node" transform="translate(300,210)">
-              <circle class="node-bg node-home" r="46"/>
-              <text class="node-label" y="-14">HOME</text>
-              <text id="home-val" class="node-val tnum" y="14">—</text>
-            </g>
-
-            <!-- GRID node -->
-            <g class="node" transform="translate(90,210)">
-              <circle class="node-bg" r="42"/>
-              <text class="node-label" y="-12">GRID</text>
-              <text id="grid-val" class="node-val tnum" y="14">—</text>
-            </g>
-
-            <!-- BATTERY node + SOC ring -->
-            <g class="node" transform="translate(510,210)">
-              <circle class="ring-track" r="42"/>
-              <circle id="batt-ring" class="ring-prog" r="42"
-                      transform="rotate(-90)" pathLength="100"
-                      stroke-dasharray="0 100"/>
-              <text class="node-label" y="-12">BATTERY</text>
-              <text id="batt-val" class="node-val tnum" y="14">—</text>
-            </g>
-          </svg>
+      <!-- ============================= HEADER ============================= -->
+      <header id="header">
+        <div class="clock-block">
+          <div id="clock" class="clock tnum">--:--</div>
+          <div id="date" class="date">—</div>
         </div>
 
-        <!-- EV charger mini-panel -->
-        <div class="card card-ev">
-          <div class="card-title">EV Charger
-            <span id="ev-status" class="badge">—</span>
-          </div>
-          <div class="ev-body">
-            <!-- semicircle power gauge -->
-            <svg class="gauge" viewBox="0 0 200 120" preserveAspectRatio="xMidYMid meet">
-              <path class="gauge-track" d="M20 110 A80 80 0 0 1 180 110"/>
-              <path id="ev-gauge" class="gauge-prog" d="M20 110 A80 80 0 0 1 180 110"
-                    pathLength="100" stroke-dasharray="0 100"/>
-              <text id="ev-power" class="gauge-val tnum" x="100" y="96">— kW</text>
-            </svg>
-            <div class="ev-stats">
-              <div class="stat"><span class="stat-lbl">Vehicle</span><span id="ev-veh" class="stat-val tnum">—</span></div>
-              <div class="stat"><span class="stat-lbl">Today</span><span id="ev-kwh" class="stat-val tnum">—</span></div>
-              <div class="stat"><span class="stat-lbl">Off-peak £ today</span><span id="ev-cost-today" class="stat-val tnum">—</span></div>
-              <div class="stat"><span class="stat-lbl">Week / Month</span><span id="ev-cost-wm" class="stat-val tnum">—</span></div>
-              <div class="stat stat-sub"><span class="stat-lbl">Mode</span><span id="ev-mode" class="stat-val">—</span></div>
-              <div class="stat stat-sub"><span class="stat-lbl">Rate now</span><span id="ev-rate" class="stat-val tnum">—</span></div>
+        <div class="weather-block">
+          <div class="weather-now">
+            <div id="wx-icon" class="wx-icon" aria-hidden="true"></div>
+            <div class="wx-now-text">
+              <div id="wx-temp" class="wx-temp tnum">--°</div>
+              <div id="wx-cond" class="wx-cond">—</div>
+              <div id="wx-hilo" class="wx-hilo tnum">H --°&nbsp; L --°</div>
             </div>
           </div>
+          <div id="wx-forecast" class="wx-forecast">
+            <!-- up to 7 day chips injected by JS -->
+          </div>
         </div>
-      </section>
+      </header>
 
-      <!-- ---------- COLUMN 2: CLIMATE & ROOMS ---------- -->
-      <section class="col col-climate">
+      <!-- =============================== MAIN ============================== -->
+      <main id="main">
+
+        <!-- ---------- ENERGY: reactor core + EV charger ---------- -->
+        <section class="col col-energy">
+          <div class="card card-flow">
+            <div class="card-title">
+              <span class="diamond"></span>Energy
+              <span id="sigen-badge" class="badge badge-warn">awaiting Sigen</span>
+              <span class="live-tag">● LIVE</span>
+            </div>
+
+            <!-- Ambient reticle: SOLAR ▸ HOME ◂ GRID ▸ EV CAR, BATTERY right -->
+            <div class="flow-wrap">
+              <svg class="flow-svg" viewBox="0 0 640 460" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                  <radialGradient id="coreGC" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%"   stop-color="var(--glow-strong,#cfefff)"/>
+                    <stop offset="55%"  stop-color="var(--glow,#4fd6ff)"/>
+                    <stop offset="100%" stop-color="rgba(20,60,90,0)"/>
+                  </radialGradient>
+                </defs>
+
+                <!-- reticle rings -->
+                <circle class="reticle dots"  cx="320" cy="230" r="210"/>
+                <circle class="reticle spin"  cx="320" cy="230" r="186"/>
+                <circle class="reticle spinr" cx="320" cy="230" r="160"/>
+
+                <!-- animated flow lines (state set by JS) -->
+                <line id="flow-solar" class="flow-line" x1="320" y1="158" x2="320" y2="96"/>
+                <line id="flow-grid"  class="flow-line" x1="248" y1="230" x2="174" y2="230"/>
+                <line id="flow-batt"  class="flow-line" x1="392" y1="230" x2="466" y2="230"/>
+                <line id="flow-ev"    class="flow-line" x1="138" y1="270" x2="138" y2="322"/>
+
+                <!-- HOME core -->
+                <circle class="core-fill" cx="320" cy="230" r="78"/>
+                <circle class="core-edge" cx="320" cy="230" r="78"/>
+                <text class="core-label" x="320" y="220">HOME</text>
+                <text id="home-val" class="core-val tnum" x="320" y="254">—</text>
+
+                <!-- SOLAR node -->
+                <circle class="node-bg" cx="320" cy="62" r="38"/>
+                <text class="node-label" x="320" y="57">SOLAR</text>
+                <text id="solar-val" class="node-val tnum" x="320" y="76">—</text>
+
+                <!-- GRID node -->
+                <circle class="node-bg" cx="138" cy="230" r="40"/>
+                <text class="node-label" x="138" y="224">GRID</text>
+                <text id="grid-val" class="node-val tnum" x="138" y="244">—</text>
+
+                <!-- EV CAR node (hangs off GRID) -->
+                <circle class="node-bg node-ev" cx="138" cy="360" r="37"/>
+                <text class="node-label" x="138" y="355">EV CAR</text>
+                <text id="evcar-val" class="node-val node-ev-val tnum" x="138" y="375">—</text>
+
+                <!-- BATTERY node + SOC ring -->
+                <circle class="node-bg" cx="502" cy="230" r="40"/>
+                <circle class="ring-track" cx="502" cy="230" r="34" transform="rotate(-90 502 230)"/>
+                <circle id="batt-ring" class="ring-prog" cx="502" cy="230" r="34"
+                        transform="rotate(-90 502 230)" pathLength="100" stroke-dasharray="0 100"/>
+                <text class="node-label" x="502" y="224">BATT</text>
+                <text id="batt-val" class="node-val tnum" x="502" y="244">—</text>
+              </svg>
+            </div>
+          </div>
+
+          <!-- EV CHARGER band -->
+          <div class="card card-ev">
+            <div class="card-title ev-title">
+              <span class="diamond green"></span>EV Charger
+              <svg class="ev-car-icon" width="46" height="26" viewBox="0 0 52 30" aria-hidden="true">
+                <rect x="4" y="13" width="44" height="11" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+                <rect x="15" y="6" width="22" height="9" rx="3" fill="none" stroke="currentColor" stroke-width="2"/>
+                <circle cx="15" cy="24" r="4.5" fill="#0b2030" stroke="currentColor" stroke-width="2"/>
+                <circle cx="37" cy="24" r="4.5" fill="#0b2030" stroke="currentColor" stroke-width="2"/>
+              </svg>
+              <span id="ev-status" class="badge ev-status-pill">—</span>
+            </div>
+            <div class="ev-body">
+              <!-- Vehicle battery fill (animates while charging) -->
+              <div class="ev-veh-block">
+                <div class="ev-veh-lbl">Vehicle battery</div>
+                <div class="ev-veh-row">
+                  <svg class="ev-bolt" width="13" height="32" viewBox="0 0 14 34" aria-hidden="true">
+                    <path d="M8 1 L2 18 L7 18 L5 33 L13 14 L7 14 Z" fill="#46f0a8" stroke="#0b2030" stroke-width="0.6"/>
+                  </svg>
+                  <div class="ev-veh-cell">
+                    <div id="ev-veh-fill" class="ev-veh-fill" style="width:0%"></div>
+                    <div id="ev-veh-sweep" class="ev-veh-sweep"></div>
+                    <div id="ev-veh-pct" class="ev-veh-pct tnum">—</div>
+                  </div>
+                  <div class="ev-veh-cap"></div>
+                </div>
+              </div>
+              <!-- Telemetry -->
+              <div class="ev-stats">
+                <div class="stat"><span class="stat-lbl">Power</span><span id="ev-power" class="stat-val tnum">— kW</span></div>
+                <div class="stat"><span class="stat-lbl">Today</span><span id="ev-kwh" class="stat-val tnum">—</span></div>
+                <div class="stat"><span class="stat-lbl">£ today</span><span id="ev-cost-today" class="stat-val tnum green">—</span></div>
+                <div class="stat"><span class="stat-lbl">Wk / Mo</span><span id="ev-cost-wm" class="stat-val tnum">—</span></div>
+                <div class="stat"><span class="stat-lbl">Mode</span><span id="ev-mode" class="stat-val">—</span></div>
+                <div class="stat"><span class="stat-lbl">Rate</span><span id="ev-rate" class="stat-val tnum">—</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------- RUNNING BUDGET ---------- -->
+        <section class="col col-budget">
+          <div class="card card-budget">
+            <div class="card-title">
+              <span class="diamond"></span>Running Budget
+              <span id="budget-badge" class="badge badge-warn">yesterday only</span>
+            </div>
+            <!-- period × metric table, rebuilt each tick by ui.js renderBudget -->
+            <div id="budget-grid" class="budget-grid"></div>
+            <div class="budget-note">Net <em>+£</em> = you earned · grid figures lag ~24h (completed days)</div>
+          </div>
+        </section>
+
+      </main>
+
+      <!-- ---------- BOTTOM BAND: heat pump · rooms · solar to-date ---------- -->
+      <section id="band" class="band">
         <div class="card card-hp">
-          <div class="card-title">Heat Pump
+          <div class="card-title">
+            <span class="diamond heat"></span>Heat Pump
             <span id="hp-mode" class="badge">—</span>
+            <span class="heat-tag">△ HEAT</span>
           </div>
           <div class="hp-grid">
-            <div class="big-stat"><span id="hp-target" class="big-val tnum">—</span><span class="big-lbl">target °C</span></div>
-            <div class="big-stat"><span id="hp-flow" class="big-val tnum">—</span><span class="big-lbl">flow °C</span></div>
-            <div class="big-stat"><span id="hp-dhw" class="big-val tnum">—</span><span class="big-lbl">hot water °C</span></div>
-            <div class="big-stat"><span id="hp-outdoor" class="big-val tnum">—</span><span class="big-lbl">outdoor °C</span></div>
-            <div class="big-stat"><span id="hp-power" class="big-val tnum">—</span><span class="big-lbl">elec today (kWh)</span></div>
+            <div class="big-stat"><span id="hp-target" class="big-val tnum">—</span><span class="big-lbl">target</span></div>
+            <div class="big-stat"><span id="hp-flow" class="big-val tnum">—</span><span class="big-lbl">flow</span></div>
+            <div class="big-stat"><span id="hp-dhw" class="big-val tnum">—</span><span class="big-lbl">hot wtr</span></div>
+            <div class="big-stat"><span id="hp-outdoor" class="big-val tnum">—</span><span class="big-lbl">outdoor</span></div>
+            <div class="big-stat"><span id="hp-power" class="big-val tnum">—</span><span class="big-lbl">kWh today</span></div>
           </div>
-          <!-- Heating vs hot-water cost (kWh × blended rate). today · month. -->
           <div class="hp-costs">
             <div class="hp-cost">
               <span class="hpc-lbl">Heating</span>
-              <span class="hpc-vals tnum"><span id="hp-heat-cost-today">—</span> <em>today</em> · <span id="hp-heat-cost-month">—</span> <em>month</em></span>
+              <span class="hpc-vals tnum"><span id="hp-heat-cost-today">—</span> <em>today</em> · <span id="hp-heat-cost-month">—</span> <em>mo</em></span>
             </div>
             <div class="hp-cost">
               <span class="hpc-lbl">Hot water</span>
-              <span class="hpc-vals tnum"><span id="hp-dhw-cost-today">—</span> <em>today</em> · <span id="hp-dhw-cost-month">—</span> <em>month</em></span>
+              <span class="hpc-vals tnum"><span id="hp-dhw-cost-today">—</span> <em>today</em> · <span id="hp-dhw-cost-month">—</span> <em>mo</em></span>
             </div>
           </div>
         </div>
+
         <div class="card card-rooms">
-          <div class="card-title">Rooms</div>
+          <div class="card-title"><span class="diamond"></span>Rooms</div>
           <div id="rooms-grid" class="rooms-grid">
             <div class="room-empty">Discovering room sensors…</div>
           </div>
         </div>
-      </section>
 
-      <!-- ---------- COLUMN 3: RUNNING BUDGET ---------- -->
-      <section class="col col-budget">
-        <div class="card card-budget">
-          <div class="card-title">Running Budget
-            <span id="budget-badge" class="badge badge-warn">yesterday only</span>
-          </div>
-
-          <!-- period × metric table, rebuilt each tick by ui.js renderBudget -->
-          <div id="budget-grid" class="budget-grid"></div>
-
-          <div class="budget-note">Net + = you paid · Net <em>+£</em> = you earned · grid figures lag ~24h (completed days)</div>
-        </div>
-
-        <!-- Solar to-date (Sigenergy portal history via sigen-portal.py) -->
         <div class="card card-solar">
-          <div class="card-title">Solar — to date
+          <div class="card-title">
+            <span class="diamond gold"></span>Solar — to date
             <span id="solar-hist-badge" class="badge badge-warn">no data</span>
           </div>
           <div id="solar-hist" class="solar-hist"></div>
         </div>
       </section>
 
-    </main>
+      <!-- ============================= FOOTER ============================= -->
+      <footer id="footer">
+        <span class="byline">AMBIENT RETICLE // the reactor energizes with live solar — peak glow at ~8 kW</span>
+        <span class="foot-status">
+          <span id="updated" class="updated">last update —</span>
+          <span id="live" class="live"><span class="dot"></span><span id="live-text">connecting…</span></span>
+        </span>
+      </footer>
 
-    <!-- ============================= FOOTER ============================= -->
-    <footer id="footer">
-      <span id="updated" class="updated">last update —</span>
-      <span id="live" class="live"><span class="dot"></span><span id="live-text">connecting…</span></span>
-    </footer>
-
+    </div>
   </div>
 
-  <!-- Optional: the multi-period budget + heat-pump month cost read HA
-       long-term statistics over the WebSocket API, which needs the token in an
-       auth MESSAGE — Caddy can't inject it the way it does for REST. Have Caddy
-       serve /ha-token.js (sets window.__HA_TOKEN from $HA_TOKEN) and uncomment
-       the line below. Without it the board still works; the budget shows the
-       "yesterday" column only. See DEPLOY-dashboard-home.md. -->
+  <!-- Optional: multi-period budget + heat-pump month cost read HA long-term
+       statistics over the WebSocket API, which needs the token in an auth
+       MESSAGE. Have Caddy serve /ha-token.js (window.__HA_TOKEN = $HA_TOKEN)
+       and uncomment below. Without it the board still works; the budget shows
+       the "yesterday" column only. See DEPLOY-dashboard-home.md. -->
   <!-- <script src="/ha-token.js"></script> -->
 
   <script type="module" src="app.js"></script>
