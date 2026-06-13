@@ -39,8 +39,9 @@ This prints a per-month / MTD / YTD table (generation, import/export, battery,
 the portal's Revenue £, and a grid cash-net at your Octopus rates) and writes
 `data/solar-history.json`. The wallboard's **Solar — to date** card reads that
 JSON (slow timer, cache-busted); `scp` it to the Pi/server alongside the site to
-refresh. Rates default to import £0.07 / export £0.15 — override with
-`--import-rate` / `--export-rate` or `SIGEN_IMPORT_RATE` / `SIGEN_EXPORT_RATE`.
+refresh. Rates default to the confirmed Octopus tariff — import £0.069 (IOG
+off-peak; ~99% of import is off-peak) / export £0.12 (flat Outgoing) — override
+with `--import-rate` / `--export-rate` or `SIGEN_IMPORT_RATE` / `SIGEN_EXPORT_RATE`.
 The portal's 5-minute power export is capped ~10k rows (~35 days); the daily and
 yearly exports go back to install, so use those for history. `sigen-stats.py` is
 the live alternative — it pulls MTD/YTD straight from HA's statistics WebSocket,

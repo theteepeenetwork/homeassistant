@@ -39,11 +39,13 @@ import argparse
 from datetime import datetime, date, timezone
 
 # Default Octopus unit rates (£/kWh) for the grid cash-net estimate. Override
-# with --import-rate/--export-rate or SIGEN_IMPORT_RATE/SIGEN_EXPORT_RATE. On
-# Intelligent Octopus Go nearly all import is the off-peak rate; export is the
-# flat Outgoing rate. These are estimates — adjust to your actual tariff.
-DEF_IMPORT_RATE = float(os.environ.get("SIGEN_IMPORT_RATE", "0.07"))
-DEF_EXPORT_RATE = float(os.environ.get("SIGEN_EXPORT_RATE", "0.15"))
+# with --import-rate/--export-rate or SIGEN_IMPORT_RATE/SIGEN_EXPORT_RATE.
+# Confirmed from the Octopus rate sensors 2026-06-13: Intelligent Octopus Go
+# off-peak import £0.069 (≈99% of import lands in the off-peak window) and a
+# flat Outgoing export of £0.12. Standing charge (£0.632/day) is added by the
+# wallboard from the live sensors, not here.
+DEF_IMPORT_RATE = float(os.environ.get("SIGEN_IMPORT_RATE", "0.069"))
+DEF_EXPORT_RATE = float(os.environ.get("SIGEN_EXPORT_RATE", "0.12"))
 
 # daily/yearly column order after the Date column
 COLS = ["pv", "load", "charge", "discharge", "import", "export", "revenue"]
