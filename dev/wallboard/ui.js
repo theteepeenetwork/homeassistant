@@ -33,12 +33,23 @@ function fmtWatts(w) {
   if (a >= 1000) return `${(w / 1000).toFixed(2)} kW`;
   return `${Math.round(w)} W`;
 }
-function fmtKwh(n) { return n == null ? '—' : `${Number(n).toFixed(1)} kWh`; }
-
-// Money with sign: spend (>=0) -> "£1.23"; credit (<0) -> "+£1.23".
-function fmtMoneySigned(n) {
+function fmtWithUnit(id) {
+  const n = ha.getNumber(id);
   if (n == null) return '—';
-  return n < 0 ? '+' + fmtMoney(-n) : fmtMoney(n);
+  const u = ha.getAttr(id, 'unit_of_measurement', '');
+  return `${n}${u ? ' ' + u : ''}`;
+}
+
+// Read a power entity and normalise to WATTS regardless of its native unit.
+// Sigenergy reports power in kW; some integrations use W or MW. fmtWatts then
+// renders W as integer watts and ≥1 kW with two decimals.
+function powerW(id) {
+  const n = ha.getNumber(id);
+  if (n == null) return null;
+  const u = String(ha.getAttr(id, 'unit_of_measurement', '') || '').toLowerCase();
+  if (u === 'kw') return n * 1000;
+  if (u === 'mw') return n * 1e6;
+  return n; // assume already watts
 }
 
 // =============================================================================
@@ -81,11 +92,11 @@ function renderEnergy() {
   const S = ENTITIES.sigen;
   const signs = ENTITIES.sigenSigns;
 
-  const solarW = ha.getNumber(S.solarPower);
-  const houseW = ha.getNumber(S.houseLoad);
+  const solarW = powerW(S.solarPower);
+  const houseW = powerW(S.houseLoad);
   const battSoc = ha.getNumber(S.batterySoc);
-  let battW = ha.getNumber(S.batteryPower);
-  let gridW = ha.getNumber(S.gridPower);
+  let battW = powerW(S.batteryPower);
+  let gridW = powerW(S.gridPower);
 
   const anyAvailable = [S.solarPower, S.batterySoc, S.batteryPower, S.gridPower, S.houseLoad]
     .some((id) => ha.isAvailable(id));
@@ -204,8 +215,14 @@ function renderClimate() {
   $('hp-flow').textContent    = fmtTemp(ha.getNumber(C.flowTemp));
   $('hp-dhw').textContent     = fmtTemp(ha.getNumber(C.dhwTankTemp));
   $('hp-outdoor').textContent = fmtTemp(ha.getNumber(C.outdoorTemp));
-  const pw = ha.getNumber(C.power);
-  $('hp-power').textContent   = pw == null ? '—' : fmtWatts(pw);
+  // Onecta exposes no instantaneous power, so show today's electricity:
+  // space-heating + hot-water daily kWh, summed.
+  let elec = null;
+  for (const id of (C.elecDaily || [])) {
+    const n = ha.getNumber(id);
+    if (n != null) elec = (elec || 0) + n;
+  }
+  $('hp-power').textContent = elec == null ? '—' : `${elec.toFixed(1)} kWh`;
 
   renderRooms();
 }
@@ -268,115 +285,79 @@ function collectUsedEntityIds() {
   return ids;
 }
 
-// =============================================================================
-//  Running Budget — period x metric matrix with two net totals.
-//  Crunches: import (spend), export (income), solar (generated), car (spend),
-//  then Net incl. car (import − export) and Net excl. car (import − car − export).
-// =============================================================================
-
-// Read a budget "source" as a number (state or attribute). null if missing.
-function readSource(src) {
-  if (!src || !src.entity) return null;
-  if (src.attr) {
-    const v = ha.getAttr(src.entity, src.attr);
-    if (v == null) return null;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  }
-  return ha.getNumber(src.entity);
-}
-
-// Read a money source, normalising pence -> pounds if the unit says so.
-function readMoney(src) {
-  const n = readSource(src);
-  if (n == null) return null;
-  const unit = (src.attr ? '' : ha.getAttr(src.entity, 'unit_of_measurement', '')) || '';
-  const u = unit.trim().toLowerCase();
-  return (u === 'p' || u === 'pence') ? n / 100 : n; // £ otherwise (GBP/£)
-}
-
-function computePeriod(B, key) {
-  const importCost   = readMoney(B.import.cost[key]);
-  const importEnergy = readSource(B.import.energy[key]);
-  const exportIncome = readMoney(B.export.income[key]);
-  const exportEnergy = readSource(B.export.energy[key]);
-  const solarEnergy  = readSource(B.solar.energy[key]);
-  const carEnergy    = readSource(B.car.energy[key]);
-
-  // Car cost: explicit sensor if provided, else kWh x off-peak rate.
-  let carCost = readMoney(B.car.cost[key]);
-  if (carCost == null && carEnergy != null) {
-    const offPeak = ha.getAttr(ENTITIES.octopus.importRate, 'current_day_min_rate');
-    if (offPeak != null) carCost = carEnergy * Number(offPeak);
-  }
-
-  const netIncl = importCost == null ? null : importCost - (exportIncome || 0);
-  const netExcl = importCost == null ? null : importCost - (carCost || 0) - (exportIncome || 0);
-
-  // House consumption split by source (powering the house; excludes battery
-  // charging). "From grid" here is grid->load, NOT the import meter.
-  const usedGrid    = readSource(B.consumption.grid[key]);
-  const usedBattery = readSource(B.consumption.battery[key]);
-  const usedSolar   = readSource(B.consumption.solar[key]);
-  let   usedTotal   = readSource(B.consumption.total[key]);
-  if (usedTotal == null && usedGrid != null && usedBattery != null && usedSolar != null) {
-    usedTotal = usedGrid + usedBattery + usedSolar;
-  }
-
-  return {
-    importCost, importEnergy, exportIncome, exportEnergy, solarEnergy,
-    carEnergy, carCost, netIncl, netExcl,
-    usedGrid, usedBattery, usedSolar, usedTotal,
-  };
-}
-
+// ---- Running budget ---------------------------------------------------------
+//  Grid import/export come from the *previous complete day* (meter lags ~24h).
+//  Car spend is the live cost tracker (month-to-date), priced off-peak.
+//  net incl. car = import + standing − export  (the real bill for that day,
+//  which already includes any car charging that day).
+//  net excl. car = net incl. car − car spend  (car priced off-peak).
+//  Negative net = credit (you earned more than you paid).
 function renderBudget() {
-  const B = ENTITIES.budget;
-  const periods = B.periods;
-  const data = periods.map((p) => computePeriod(B, p.key));
-  const colN = periods.length + 1;
+  const B = ENTITIES.budget, O = ENTITIES.octopus, S = ENTITIES.sigen;
 
-  // cell with a primary figure + optional kWh sub-line; `cls` colours it
-  const cell = (primary, sub, cls = '') =>
-    `<td><span class="b-money ${cls}">${primary}</span>${sub ? `<span class="b-sub tnum">${sub}</span>` : ''}</td>`;
-  // a row: label + one cell per period, built by fn(periodData)
-  const row = (label, fn, thCls = '') =>
-    `<tr><th class="${thCls}">${label}</th>${data.map(fn).join('')}</tr>`;
-  const grp = (label) => `<tr class="b-grp"><th colspan="${colN}">${label}</th></tr>`;
+  const importCost     = ha.getNumber(B.importCost);
+  const importKwh      = ha.getNumber(B.importKwh);
+  const importStanding = ha.getNumber(B.importStanding) ?? 0;
+  const exportInc      = ha.getNumber(B.exportIncome);
+  const exportKwh      = ha.getNumber(B.exportKwh);
+  const exportStanding = ha.getNumber(B.exportStanding) ?? 0;
+  const standing       = importStanding + exportStanding;
 
-  const money  = (v) => (v == null ? '—' : fmtMoney(v));
-  const moneyP = (v) => (v == null ? '—' : '+' + fmtMoney(v)); // income, leading +
-  const kwh    = (v) => (v == null ? '—' : fmtKwh(v));
-  const sub    = (v) => (v == null ? '' : fmtKwh(v));
+  // Car priced at off-peak (per the OHME dispatch caveat): kWh × off-peak rate.
+  const offPeak    = ha.getAttr(O.importRate, 'current_day_min_rate');
+  const carKwhMo   = ha.getAttr(B.carMonth, 'total_consumption');
+  const carKwhDay  = ha.getAttr(B.carToday, 'total_consumption');
+  const carCostMo  = (offPeak != null && carKwhMo  != null) ? Number(carKwhMo)  * Number(offPeak) : null;
+  const carCostDay = (offPeak != null && carKwhDay != null) ? Number(carKwhDay) * Number(offPeak) : null;
 
-  const head = `<tr><th></th>${periods.map((p) => `<th>${p.label}</th>`).join('')}</tr>`;
+  // Rows
+  $('b-import').textContent     = fmtMoney(importCost);
+  $('b-import-kwh').textContent = importKwh == null ? '—' : `${importKwh.toFixed(1)} kWh`;
+  $('b-export').textContent     = exportInc == null ? '—' : '+' + fmtMoney(exportInc);
+  $('b-export-kwh').textContent = exportKwh == null ? '—' : `${exportKwh.toFixed(1)} kWh`;
+  $('b-standing').textContent   = fmtMoney(standing);
+  $('b-car').textContent        = fmtMoney(carCostMo);
+  $('b-car-kwh').textContent    = carKwhMo == null ? '—' : `${Number(carKwhMo).toFixed(1)} kWh`;
 
-  const netCls = (v) => (v == null ? '' : v < 0 ? 'income' : 'spend');
+  // Generation — live once Sigen exposes a daily PV energy sensor, else placeholder.
+  const genKwh = ha.getNumber(B.genDailyKwh);
+  const genLive = ha.isAvailable(B.genDailyKwh) || ha.isAvailable(S.solarPower);
+  $('b-gen').textContent     = genLive && genKwh != null ? `${genKwh.toFixed(1)} kWh` : 'awaiting Sigen';
+  $('b-gen-kwh').textContent = '';
 
-  $('budget-grid').innerHTML = `<table class="budget-table">
-    <thead>${head}</thead>
-    <tbody>
-      ${grp('Cost')}
-      ${row('Import', (d) => cell(money(d.importCost),  sub(d.importEnergy), 'spend'))}
-      ${row('Export', (d) => cell(moneyP(d.exportIncome), sub(d.exportEnergy), 'income'))}
-      ${row('Car',    (d) => cell(money(d.carCost),     sub(d.carEnergy), 'spend'))}
-    </tbody>
-    <tbody>
-      ${grp('Generation')}
-      ${row('Solar', (d) => cell(kwh(d.solarEnergy), '', 'solar'))}
-    </tbody>
-    <tbody>
-      ${grp('Used by house')}
-      ${row('From grid',    (d) => cell(kwh(d.usedGrid), '', 'grid'))}
-      ${row('From battery', (d) => cell(kwh(d.usedBattery), '', 'batt'))}
-      ${row('From solar',   (d) => cell(kwh(d.usedSolar), '', 'solar'))}
-      ${row('Total',        (d) => cell(kwh(d.usedTotal), '', 'total'), 'b-strong')}
-    </tbody>
-    <tfoot>
-      ${row('Net <small>incl. car</small>', (d) => `<td><span class="b-money ${netCls(d.netIncl)}">${fmtMoneySigned(d.netIncl)}</span></td>`, 'b-net-th')}
-      ${row('Net <small>excl. car</small>', (d) => `<td><span class="b-money ${netCls(d.netExcl)}">${fmtMoneySigned(d.netExcl)}</span></td>`, 'b-net-th')}
-    </tfoot>
-  </table>`;
+  // Nets (yesterday grid basis)
+  const netIncl = (importCost != null && exportInc != null) ? importCost + standing - exportInc : null;
+  const netExcl = (netIncl != null && carCostDay != null) ? netIncl - carCostDay : null;
+  setNet('b-net-incl', netIncl);
+  setNet('b-net-excl', netExcl);
+
+  const badge = $('budget-badge');
+  badge.className = 'badge ' + (genLive ? 'badge-ok' : 'badge-warn');
+  badge.textContent = genLive ? 'live' : 'yest + month';
+}
+
+// Show a net as credit (+, green) when negative, or spend (plain) when positive.
+function setNet(id, val) {
+  const el = $(id);
+  if (val == null) { el.textContent = '—'; el.className = 'net-val tnum'; return; }
+  const credit = val < -0.005;
+  el.textContent = credit ? '+' + fmtMoney(-val) : fmtMoney(val);
+  el.className = 'net-val tnum ' + (credit ? 'credit' : 'spend');
+}
+
+function relativeOrState(id) {
+  const e = ha.getEntity(id);
+  if (!e || e.state === 'unknown' || e.state === 'unavailable') return '—';
+  // If the state parses as a timestamp, show "Nh ago"; else show raw state.
+  const t = Date.parse(e.state);
+  if (!Number.isNaN(t)) {
+    const mins = Math.round((Date.now() - t) / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 48) return `${hrs}h ago`;
+    return `${Math.round(hrs / 24)}d ago`;
+  }
+  return e.state;
 }
 
 function renderFooter() {

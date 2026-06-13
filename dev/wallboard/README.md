@@ -9,7 +9,7 @@ and silently reloads once a day as memory-leak insurance.
 
 ```
 dev/wallboard/
-├── index.html            # static layout: header / energy / climate / budget / footer
+├── index.html            # static layout: header / energy / climate / server / footer
 ├── style.css             # dark 1080p grid, flow + gauge animations, night dim
 ├── config.js             # ★ ENTITIES map + CONFIG — the only file you edit to re-wire
 ├── ha.js                 # data layer: poll /api/states, cache, backoff, staleness, forecast
@@ -23,16 +23,11 @@ dev/wallboard/
 ```
 
 > **Heads-up on entity IDs.** This was built from the entity IDs in the brief.
-> The Ohme, Octopus rate/cost-tracker IDs are confirmed; **Sigen
+> The Ohme, Octopus, server-health and container IDs are confirmed; **Sigen
 > (solar/battery/grid) is not live yet** and shows "awaiting Sigen" placeholders;
 > weather, heat-pump and room-sensor IDs are best-guesses marked `VERIFY` in
 > `config.js`. Run `discover-entities.sh` on macserver and fix any mismatches —
 > it's all in one config object, so re-wiring is a one-line change per entity.
->
-> **Column 3 is the Running Budget** (the original server/containers tile was
-> removed). Only the "today import" and "car" cells wire up automatically; the
-> month/YTD, export and solar cells need sensors that don't exist yet — see
-> **§ Wiring the Running Budget** below.
 
 ---
 
@@ -160,64 +155,7 @@ off-peak, so this is correct. Today / week / month all use the same formula.
 
 ---
 
-## 5. Wiring the Running Budget
-
-The budget tile (column 3) is a **period × metric matrix** defined in
-`ENTITIES.budget` in `config.js`. Each cell is a source:
-
-```js
-{ entity: 'sensor.x' }            // read the entity STATE as a number
-{ entity: 'sensor.x', attr: 'y' } // read attribute y (e.g. total_consumption)
-{ entity: null }                  // shows "—" until wired
-```
-
-The tile has three sections plus the net totals:
-
-- **Cost (£):** Import, Export (income, `+`), Car
-- **Generation (kWh):** Solar generated
-- **Used by house (kWh):** From grid / From battery / From solar / Total —
-  i.e. **what powered the house, split by source**
-- **Net:**
-  ```
-  Net (incl. car) = import cost − export income
-  Net (excl. car) = import cost − car cost − export income
-  ```
-
-> **"Used by house" is house LOAD only — it excludes energy used to charge the
-> battery (and the EV).** So **From grid** is the *grid→house* portion, **not**
-> the meter import (which also includes battery/EV charging). That source split
-> can only come from Sigen, so these rows are PENDING until Modbus opens.
-> **Total** is a direct Sigen house-load sensor if you set one, otherwise the
-> sum of the three — but only shown when all three are present (else "—", to
-> avoid a misleading total).
-
-Costs auto-convert pence→£ when the entity unit is `p`/`pence`. Car cost is
-`car kWh × off-peak rate` (same logic as the EV panel) unless you set an
-explicit `budget.car.cost.*` sensor. Net credit (income > spend) shows green
-with a `+`; net spend shows amber.
-
-### What works out of the box
-- **Import — Today**: best-guess Octopus *current accumulative cost/consumption*
-  sensors (same serial/MPAN as the rate sensor). **Confirm with
-  `discover-entities.sh`** — units especially (£ vs pence).
-- **Car — Today & Month**: the Octopus EV cost trackers (`…_ev_charger`,
-  `…_ev_charger_month`, `total_consumption` attribute).
-
-### What you need to create / confirm (cells show "—" until then)
-| Cell | How to get it |
-|---|---|
-| **Export** (all periods) | Your export meter has its own serial/MPAN. Run `./discover-entities.sh \| grep _export_` and paste `…_export_current_accumulative_cost` / `…_consumption` into `budget.export.*.today`. |
-| **Import / Export — Month & YTD** | Octopus doesn't expose these directly. Create **utility_meter** helpers (Settings → Devices & Services → Helpers → Utility Meter) with a *monthly* and a *yearly* cycle, sourced from the import/export cost & consumption sensors. Or add Octopus **cost trackers** with `_month` companions. Put the resulting entity IDs into `budget.import.*` / `budget.export.*`. |
-| **Solar — generation** | From the Sigen integration once Modbus opens (e.g. a daily PV-energy sensor for Today, plus utility_meter helpers for Month/YTD). Paste into `budget.solar.energy.*`. |
-| **Used by house — from grid / battery / solar** | All from Sigen (PENDING). These are *to-load* energies, **excluding battery charging** — e.g. grid→load, battery discharge→load, solar self-consumption→load. Paste into `budget.consumption.{grid,battery,solar}.*`. Optionally set `budget.consumption.total.*` to a Sigen house-load energy sensor; otherwise Total is the sum of the three. Month/YTD need utility_meter helpers. |
-| **Car — YTD** | No yearly tracker by default — add an Octopus cost tracker `_year` (or a yearly utility_meter on the EV consumption) and set `budget.car.energy.ytd`. |
-
-Every cell is independent: wire what you have, the rest stays "—" and lights up
-automatically when its sensor appears. Reload (or wait for the 04:00 watchdog).
-
----
-
-## 6. Local testing (optional, off the Pi)
+## 5. Local testing (optional, off the Pi)
 
 ES modules need to be served over HTTP (not `file://`). To preview the layout
 without HA, serve the folder and you'll see placeholders + the "connecting…"
@@ -238,10 +176,8 @@ resolves), or temporarily point a dev proxy at HA with the token.
   blank the board. Failed polls keep the last cache and back off (2→30s). Window
   `error`/`unhandledrejection` are swallowed to logs — never a dialog on the wall.
 - **No leaks:** the DOM skeleton is built once in `index.html`; `render()` only
-  updates text/attributes/classes, so CSS animations never restart. The small
-  rooms/budget grids are the only innerHTML rebuilds (text only, no animation).
-  Plus the daily 04:00 reload.
+  updates text/attributes/classes, so CSS animations never restart and there are
+  no growing node sets. Plus the daily 04:00 reload.
 - **Calm motion:** only the slow dashed energy-flow lines move; nothing flickers.
 - **Glanceable:** large `tabular-nums`, one accent colour, state colour-coding
-  (charging = green, grid import = amber, export/income = teal/green, net
-  spend = amber, net credit = green).
+  (charging/up = green, import = amber, export = teal, down/fault = red).
