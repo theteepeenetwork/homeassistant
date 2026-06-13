@@ -268,7 +268,16 @@ function renderEV() {
   // cost = cost-tracker `total_consumption` kWh  x  off-peak (current_day_min_rate)
   const offPeak = ha.getAttr(O.importRate, 'current_day_min_rate');
   const rateNow = ha.getNumber(O.importRate);
-  $('ev-rate').textContent = rateNow == null ? '—' : fmtMoney(rateNow) + '/kWh';
+
+  // "Rate now" = what the car is actually billed at right now. On Intelligent
+  // Octopus Go the tariff is always the smart (off-peak) rate inside the
+  // 23:30–05:30 window, AND any charging session Octopus activates is billed at
+  // that smart rate even outside the window. So when the car is charging (or
+  // Octopus is actively dispatching), show the off-peak rate; otherwise show the
+  // live import rate, which already drops to off-peak during the cheap window.
+  const onSmartRate = status === 'charging' || ha.getState(O.dispatching) === 'on';
+  const effectiveRate = (onSmartRate && offPeak != null) ? Number(offPeak) : rateNow;
+  $('ev-rate').textContent = effectiveRate == null ? '—' : fmtMoney(effectiveRate) + '/kWh';
 
   const kwhToday = ha.getAttr(O.costTrackerToday, 'total_consumption');
   const kwhWeek  = ha.getAttr(O.costTrackerWeek, 'total_consumption');
