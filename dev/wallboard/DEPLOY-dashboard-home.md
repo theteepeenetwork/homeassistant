@@ -57,7 +57,7 @@ Edit `dev/wallboard/config.js` here to match, re-`scp` the file, refresh the
 browser. Sigen (solar/battery) stays on "awaiting Sigen" until Modbus is back.
 
 ## 7. Multi-period budget + heat-pump cost (long-term statistics)
-The budget table (yesterday · this week · last week · month · year) and the
+The budget table (yesterday · month-to-date · year-to-date) and the
 heat-pump month cost read HA **long-term statistics** over the WebSocket API
 (`recorder/statistics_during_period`). Two things to wire:
 
@@ -79,7 +79,7 @@ heat-pump month cost read HA **long-term statistics** over the WebSocket API
 **Without this the board still works** — it falls back to the live previous-day
 sensors, so the budget shows the **"yesterday"** column only and the badge reads
 "yesterday only". Verify it's working: the badge flips to **"live"** and the
-week/month/year columns populate.
+month-to-date / year-to-date columns populate.
 
 **Security note:** this is the one place the token reaches the browser. It's
 acceptable on a locked-down trusted-LAN kiosk; scope the `wallboard` token and
