@@ -52,6 +52,9 @@ export const CONFIG = {
   //  served same-origin by Caddy; refreshed on the slow stats timer. Set to
   //  null to hide the Solar-to-date card.
   solarHistoryUrl: 'data/solar-history.json',
+  //  Car charging MTD/YTD from the Ohme app (the integration has no year of
+  //  history). Same shape idea as solar: periods.mtd/ytd.carKwh. Manual refresh.
+  carHistoryUrl: 'data/car-history.json',
 
   // ---- Locale / formatting --------------------------------------------------
   locale: 'en-GB',
@@ -122,7 +125,7 @@ export const ENTITIES = {
     // Car spend: off-peak £ = cost-tracker total_consumption (kWh) x off-peak rate.
     carMonth:       'sensor.octopus_energy_cost_tracker_ev_charger_month',  // read total_consumption attr
     carToday:       'sensor.octopus_energy_cost_tracker_ev_charger',        // read total_consumption attr (daily car proxy for net excl. car)
-    carYear:        'sensor.drive_ohme_home_pro_car_charging_yearly',       // state = kWh YTD (yearly utility_meter on the Ohme energy sensor)
+    carYear:        'sensor.drive_ohme_home_pro_car_charging_yearly',  // YTD car kWh — read STATE. utility_meter (yearly cycle) on sensor.ohme_home_pro_energy. Accrues from creation; a true Jan->now YTD after the next year reset.
     // Generation (PV daily energy) — Sigen LIVE 2026-06-09.
     genDailyKwh:    'sensor.sigen_plant_daily_pv_energy',  // kWh today
   },

@@ -1,0 +1,16 @@
+{
+  "generated": "2026-06-13T20:48:52Z",
+  "source": "Ohme app - Usage (Month/Year) export",
+  "asOf": "2026-06-13",
+  "note": "Manual refresh from the Ohme app. carKwh = electricity used (kWh). Cost is computed at the live off-peak rate unless carCost is set here.",
+  "periods": {
+    "mtd": {
+      "label": "Jun MTD",
+      "carKwh": 112.15
+    },
+    "ytd": {
+      "label": "2026 YTD",
+      "carKwh": 2895.55
+    }
+  }
+}

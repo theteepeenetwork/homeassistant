@@ -11,7 +11,7 @@
 
 import { CONFIG, ENTITIES } from './config.js';
 import * as ha from './ha.js';
-import { render, setForecast, setStats, setSolarHistory, statsQuery } from './ui.js';
+import { render, setForecast, setStats, setSolarHistory, setCarHistory, statsQuery } from './ui.js';
 
 // Never let an uncaught error surface as a browser dialog on the wall.
 window.addEventListener('error', (e) => console.error('[wallboard] window error', e.error || e.message));
@@ -91,6 +91,23 @@ async function refreshSolarHistory() {
   }
 }
 
+// ---- Car charging history (slow refresh) ------------------------------------
+//  Static JSON of true MTD/YTD car kWh from the Ohme app (the integration has
+//  no year of history). Same-origin file served by Caddy; absent file just
+//  leaves the budget on its live fallbacks. Cache-busted like the solar export.
+async function refreshCarHistory() {
+  const url = CONFIG.carHistoryUrl;
+  if (!url) return;
+  try {
+    const res = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    setCarHistory(await res.json());
+    render();
+  } catch (e) {
+    console.warn('[wallboard] car history fetch failed:', e && e.message);
+  }
+}
+
 // ---- Boot -------------------------------------------------------------------
 function boot() {
   tickClock();
@@ -111,6 +128,10 @@ function boot() {
   // Solar history (Sigen portal MTD/YTD), slow refresh.
   refreshSolarHistory();
   setInterval(refreshSolarHistory, CONFIG.statsRefreshMs);
+
+  // Car charging history (Ohme app MTD/YTD), slow refresh.
+  refreshCarHistory();
+  setInterval(refreshCarHistory, CONFIG.statsRefreshMs);
 
   // 1s housekeeping tick for clock / night-dim / watchdog (cheap, no leaks).
   setInterval(() => {

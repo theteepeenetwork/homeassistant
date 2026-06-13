@@ -28,6 +28,10 @@ function hasStats() { return Object.keys(statsData).length > 0; }
 let solarHistory = null;
 export function setSolarHistory(obj) { solarHistory = (obj && typeof obj === 'object') ? obj : null; }
 
+// Car charging history (Ohme app) JSON. Shape: { periods: { mtd:{carKwh}, ytd:{carKwh} } }.
+let carHistory = null;
+export function setCarHistory(obj) { carHistory = (obj && typeof obj === 'object') ? obj : null; }
+
 // ---- Period windows ---------------------------------------------------------
 //  All budget figures are aligned to COMPLETED days (grid cost is only final
 //  ~24h late), so every window ends at local midnight today (today excluded).
@@ -423,6 +427,13 @@ function renderBudget() {
     : key === 'month' ? (portal.mtd || null)
     : key === 'year'  ? (portal.ytd || null) : null);
 
+  // Car charging history (Ohme app) — accurate MTD/YTD car kWh the integration
+  // can't supply. Preferred over the cost-tracker / utility-meter when present.
+  const carPortal = carHistory && carHistory.periods;
+  const carPortalFor = (key) => (!carPortal ? null
+    : key === 'month' ? (carPortal.mtd || null)
+    : key === 'year'  ? (carPortal.ytd || null) : null);
+
   // Build one metrics object per period.
   const cols = PERIODS.map(({ key }) => {
     const w = win[key];
@@ -445,12 +456,16 @@ function renderBudget() {
       genKwh     = statSum(ST.generationKwh, w) ?? (yest && genLive ? live.genKwh : null);
     }
 
-    // car: HA stats → live yesterday → live month cost-tracker (month column)
-    //      → yearly utility_meter on the Ohme energy sensor (year column)
-    let carKwh = statSum(ST.carKwh, w) ?? (yest ? live.carKwh : null);
+    // car: Ohme history JSON (month/year) → HA stats → live yesterday →
+    //      live month cost-tracker (month col) → yearly utility_meter (year col)
+    const cph = carPortalFor(key);
+    let carKwh = (cph ? toNum(cph.carKwh) : null)
+              ?? statSum(ST.carKwh, w) ?? (yest ? live.carKwh : null);
     if (carKwh == null && key === 'month') carKwh = toNum(ha.getAttr(B.carMonth, 'total_consumption'));
     if (carKwh == null && key === 'year' && B.carYear) carKwh = toNum(ha.getState(B.carYear));
-    const carCost  = (offPeak != null && carKwh != null) ? carKwh * Number(offPeak) : null;
+    // £: explicit carCost from the JSON if provided, else off-peak estimate.
+    const carCost  = (cph && cph.carCost != null) ? Number(cph.carCost)
+                   : (offPeak != null && carKwh != null) ? carKwh * Number(offPeak) : null;
     const standing = w.days > 0 ? standingPerDay * w.days : (yest ? standingPerDay : null);
     const netIncl = (importCost != null && exportCost != null)
       ? importCost + (standing || 0) - exportCost : null;
