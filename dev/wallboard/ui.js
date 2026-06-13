@@ -411,18 +411,45 @@ function renderBudget() {
   };
   const genLive = ha.isAvailable(B.genDailyKwh) || ha.isAvailable(S.solarPower);
 
+  // Month/Year-to-date import, export and generation come from the Sigenergy
+  // portal history (solar-history.json) when present — real figures without the
+  // HA statistics WebSocket. £ = portal kWh priced at the JSON's import/export
+  // rates. Yesterday stays on the live previous-day sensors / HA stats.
+  const portal = solarHistory && solarHistory.periods;
+  const pRates = (solarHistory && solarHistory.rates) || {};
+  const importRate = toNum(pRates.import);
+  const exportRate = toNum(pRates.export);
+  const portalFor = (key) => (!portal ? null
+    : key === 'month' ? (portal.mtd || null)
+    : key === 'year'  ? (portal.ytd || null) : null);
+
   // Build one metrics object per period.
   const cols = PERIODS.map(({ key }) => {
     const w = win[key];
     const yest = key === 'yesterday';
-    const importCost = statSum(ST.importCost, w) ?? (yest ? live.importCost : null);
-    const importKwh  = statSum(ST.importKwh,  w) ?? (yest ? live.importKwh  : null);
-    const exportCost = statSum(ST.exportCost, w) ?? (yest ? live.exportCost : null);
-    const exportKwh  = statSum(ST.exportKwh,  w) ?? (yest ? live.exportKwh  : null);
-    const genKwh     = statSum(ST.generationKwh, w) ?? (yest && genLive ? live.genKwh : null);
-    const carKwh     = statSum(ST.carKwh, w) ?? (yest ? live.carKwh : null);
-    const carCost    = (offPeak != null && carKwh != null) ? carKwh * Number(offPeak) : null;
-    const standing   = w.days > 0 ? standingPerDay * w.days : (yest ? standingPerDay : null);
+    const ph = portalFor(key);
+
+    // import / export / generation: portal (month/year) → HA stats → live (yest)
+    let importCost, importKwh, exportCost, exportKwh, genKwh;
+    if (ph) {
+      importKwh  = toNum(ph.import);
+      exportKwh  = toNum(ph.export);
+      genKwh     = toNum(ph.pv);
+      importCost = (importKwh != null && importRate != null) ? importKwh * importRate : null;
+      exportCost = (exportKwh != null && exportRate != null) ? exportKwh * exportRate : null;
+    } else {
+      importCost = statSum(ST.importCost, w) ?? (yest ? live.importCost : null);
+      importKwh  = statSum(ST.importKwh,  w) ?? (yest ? live.importKwh  : null);
+      exportCost = statSum(ST.exportCost, w) ?? (yest ? live.exportCost : null);
+      exportKwh  = statSum(ST.exportKwh,  w) ?? (yest ? live.exportKwh  : null);
+      genKwh     = statSum(ST.generationKwh, w) ?? (yest && genLive ? live.genKwh : null);
+    }
+
+    // car: HA stats → live yesterday → live month cost-tracker (month column)
+    let carKwh = statSum(ST.carKwh, w) ?? (yest ? live.carKwh : null);
+    if (carKwh == null && key === 'month') carKwh = toNum(ha.getAttr(B.carMonth, 'total_consumption'));
+    const carCost  = (offPeak != null && carKwh != null) ? carKwh * Number(offPeak) : null;
+    const standing = w.days > 0 ? standingPerDay * w.days : (yest ? standingPerDay : null);
     const netIncl = (importCost != null && exportCost != null)
       ? importCost + (standing || 0) - exportCost : null;
     const netExcl = (netIncl != null && carCost != null) ? netIncl - carCost : null;
@@ -466,9 +493,10 @@ function renderBudget() {
     `</tbody></table>`;
 
   const badge = $('budget-badge');
-  const liveStats = hasStats();
-  badge.className = 'badge ' + (liveStats ? 'badge-ok' : 'badge-warn');
-  badge.textContent = liveStats ? 'live' : 'yesterday only';
+  const live2 = hasStats() || !!portal;
+  badge.className = 'badge ' + (live2 ? 'badge-ok' : 'badge-warn');
+  badge.textContent = hasStats() ? 'live'
+    : portal ? 'MTD/YTD from portal' : 'yesterday only';
 }
 
 // ---- Solar to-date (Sigenergy portal history) -------------------------------
