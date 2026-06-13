@@ -17,10 +17,21 @@
 export const CONFIG = {
   // ---- Data layer -----------------------------------------------------------
   apiBase: '/api',          // same-origin; Caddy adds the Bearer token server-side
+  wsBase: '/api/websocket', // HA WebSocket API — used ONLY for long-term
+                            // statistics (multi-period budget / heat-pump cost).
+                            // Needs a token in the WS auth message (Caddy can't
+                            // inject it like it does for REST) — see DEPLOY +
+                            // CONFIG.haToken / window.__HA_TOKEN below.
   pollIntervalMs: 4000,     // /api/states poll cadence (brief: 3–5 s)
+  statsRefreshMs: 900000,   // 15 min — statistics refresh cadence (slow/cheap)
   requestTimeoutMs: 8000,   // abort a hung request after this long
   staleAfterMs: 15000,      // no successful poll within this window => "stale"
   backoff: { baseMs: 2000, maxMs: 30000 }, // exponential backoff on failure
+
+  // Token for the WebSocket statistics auth step only. Leave null and inject at
+  // deploy as window.__HA_TOKEN (kiosk, trusted LAN). If absent, the live board
+  // still works; multi-period columns fall back to "yesterday" only. See DEPLOY.
+  haToken: null,
 
   // ---- Watchdog reload (memory-leak insurance for weeks-long uptime) --------
   dailyReload: { enabled: true, atHour: 4, atMinute: 0 }, // silent full reload ~04:00
@@ -37,6 +48,13 @@ export const CONFIG = {
   locale: 'en-GB',
   currency: 'GBP',
   timeZoneNote: 'rendered from the browser clock; HA is not polled for time',
+
+  // ---- Heat-pump cost estimate ----------------------------------------------
+  //  The Daikin exposes only kWh (heating + hot water), not £. To show a cost we
+  //  multiply by a single blended £/kWh — a combined peak/off-peak average you
+  //  tune to your tariff. NB the heat pump also runs partly on solar, so this is
+  //  an upper-bound grid-priced estimate, not the exact bill.
+  heatPump: { blendedRatePerKwh: 0.245 },
 
   // ---- Rooms auto-discovery safety net --------------------------------------
   //  If true, any sensor with device_class "temperature" (°C) that is NOT
@@ -97,6 +115,26 @@ export const ENTITIES = {
     carToday:       'sensor.octopus_energy_cost_tracker_ev_charger',        // read total_consumption attr (daily car proxy for net excl. car)
     // Generation (PV daily energy) — Sigen LIVE 2026-06-09.
     genDailyKwh:    'sensor.sigen_plant_daily_pv_energy',  // kWh today
+  },
+
+  // ---- Multi-period statistics — VERIFY ALL IDS -----------------------------
+  //  Read via HA long-term statistics (ha.getStatistics, WebSocket) and bucketed
+  //  in ui.js into yesterday / this week / last week / month / year. Each id
+  //  MUST be a CUMULATIVE sensor that records long-term statistics (i.e. shows
+  //  up in the HA Energy dashboard / Developer Tools → Statistics) so its
+  //  per-day `change` is meaningful. Confirm the real ids on the server:
+  //      ./discover-entities.sh stats
+  //  Any id that is wrong/missing simply renders "—" for that metric; the
+  //  "yesterday" column still falls back to the live budget.* sensors above.
+  stats: {
+    importCost:    'sensor.octopus_energy_electricity_23j0328210_2700007457948_accumulative_cost',          // VERIFY £ cumulative
+    importKwh:     'sensor.octopus_energy_electricity_23j0328210_2700007457948_accumulative_consumption',   // VERIFY kWh cumulative
+    exportCost:    'sensor.octopus_energy_electricity_23j0328210_2700010881501_export_accumulative_cost',          // VERIFY £ cumulative (income)
+    exportKwh:     'sensor.octopus_energy_electricity_23j0328210_2700010881501_export_accumulative_consumption',   // VERIFY kWh cumulative
+    generationKwh: 'sensor.sigen_plant_accumulated_pv_energy',  // VERIFY lifetime PV energy (kWh)
+    carKwh:        'sensor.ohme_home_pro_energy',               // VERIFY session kWh records stats (total_increasing)
+    heatingKwh:    'sensor.heating_climatecontrol_heating_daily_electrical_consumption',     // daily kWh — change/day summed
+    dhwKwh:        'sensor.heating_domestichotwatertank_heating_daily_electrical_consumption', // daily kWh — change/day summed
   },
 
   // ---- Solar / battery / grid: Sigenergy — LIVE (Modbus open) ---------------

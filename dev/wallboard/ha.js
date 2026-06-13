@@ -143,6 +143,72 @@ export async function getForecast(entityId, type = 'daily') {
   return Array.isArray(attr) ? attr : [];
 }
 
+/**
+ * Fetch HA long-term statistics for one or more statistic ids over a window.
+ * Uses the WebSocket API (`recorder/statistics_during_period`) because REST
+ * history is retention-limited and can't cover "month"/"year"; long-term
+ * statistics can. One-shot: connect → auth → query → resolve → close.
+ *
+ * Auth: HA requires the token in a WS `auth` message, which Caddy can't inject
+ * the way it does for REST. The token comes from window.__HA_TOKEN (injected at
+ * deploy) or CONFIG.haToken. If neither is set, this resolves to {} and callers
+ * degrade gracefully (the live board is unaffected).
+ *
+ * Returns { [statistic_id]: [{ start, end, change, sum, state }, ...] } or {}.
+ * Never throws — failures resolve to {} (matches the board's error philosophy).
+ */
+export function getStatistics(statisticIds, startISO, endISO, period = 'day') {
+  return new Promise((resolve) => {
+    if (!Array.isArray(statisticIds) || statisticIds.length === 0) return resolve({});
+    const token = (typeof window !== 'undefined' && window.__HA_TOKEN) || CONFIG.haToken || null;
+
+    let ws = null, done = false;
+    const QUERY_ID = 1;
+    const finish = (val) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { if (ws) ws.close(); } catch (e) { /* ignore */ }
+      resolve(val);
+    };
+    const timer = setTimeout(() => finish({}), CONFIG.requestTimeoutMs);
+
+    try {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${proto}//${location.host}${CONFIG.wsBase}`);
+    } catch (e) {
+      console.warn('[wallboard] stats ws open failed:', e && e.message);
+      return finish({});
+    }
+
+    ws.onerror = () => finish({});
+    ws.onclose = () => finish({}); // if it closes before a result, treat as empty
+    ws.onmessage = (ev) => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      if (msg.type === 'auth_required') {
+        if (!token) { console.warn('[wallboard] stats: no token; skipping'); return finish({}); }
+        ws.send(JSON.stringify({ type: 'auth', access_token: token }));
+      } else if (msg.type === 'auth_ok') {
+        ws.send(JSON.stringify({
+          id: QUERY_ID,
+          type: 'recorder/statistics_during_period',
+          start_time: startISO,
+          end_time: endISO,
+          statistic_ids: statisticIds,
+          period,
+          types: ['change', 'sum', 'state'],
+        }));
+      } else if (msg.type === 'auth_invalid') {
+        console.warn('[wallboard] stats: auth invalid');
+        finish({});
+      } else if (msg.type === 'result' && msg.id === QUERY_ID) {
+        finish(msg.success && msg.result ? msg.result : {});
+      }
+    };
+  });
+}
+
 let timer = null;
 let stopped = false;
 

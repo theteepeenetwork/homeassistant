@@ -48,15 +48,51 @@ Then open **http://dashboard.home** in a browser.
 
 ## 6. Fix any entity IDs (optional, recommended)
 Several IDs in `config.js` are best-guesses (weather, Daikin climate, rooms,
-last-backup). On the server:
+last-backup) and **all of `ENTITIES.stats`** (the multi-period budget + heat-pump
+cost sources). On the server:
 ```bash
 ~/dev/wallboard/discover-entities.sh        # grouped list of real entity_ids
 ```
 Edit `dev/wallboard/config.js` here to match, re-`scp` the file, refresh the
 browser. Sigen (solar/battery) stays on "awaiting Sigen" until Modbus is back.
 
+## 7. Multi-period budget + heat-pump cost (long-term statistics)
+The budget table (yesterday · this week · last week · month · year) and the
+heat-pump month cost read HA **long-term statistics** over the WebSocket API
+(`recorder/statistics_during_period`). Two things to wire:
+
+1. **WebSocket proxy** — the `http://dashboard.home` Caddy block already proxies
+   `/api/*`, which covers `/api/websocket` (Caddy upgrades WS automatically). No
+   change needed if your block proxies all of `/api/*`.
+2. **Token for the WS auth step** — unlike REST, Caddy can't inject the token
+   into the WS `auth` *message*. Serve it same-origin so the page can read it.
+   Add to the `dashboard.home` Caddy block:
+   ```
+   handle /ha-token.js {
+     header Content-Type application/javascript
+     respond `window.__HA_TOKEN={env.HA_TOKEN};` 200
+   }
+   ```
+   (wrap the value in quotes: `window.__HA_TOKEN="{env.HA_TOKEN}";`), then
+   uncomment `<script src="/ha-token.js"></script>` in `index.html`.
+
+**Without this the board still works** — it falls back to the live previous-day
+sensors, so the budget shows the **"yesterday"** column only and the badge reads
+"yesterday only". Verify it's working: the badge flips to **"live"** and the
+week/month/year columns populate.
+
+**Security note:** this is the one place the token reaches the browser. It's
+acceptable on a locked-down trusted-LAN kiosk; scope the `wallboard` token and
+don't expose `dashboard.home` beyond the LAN. The REST path is unchanged (token
+stays server-side).
+
+Tune `CONFIG.heatPump.blendedRatePerKwh` in `config.js` to your tariff — it's the
+blended £/kWh used to cost heating vs hot water (an upper-bound grid price; the
+HP also runs partly on solar).
+
 ## Notes
-- The browser never sees the token — Caddy adds `Authorization: Bearer …` to
-  `/api/*` server-side; the site calls same-origin `/api`.
+- For REST (`/api/*`) the browser never sees the token — Caddy adds
+  `Authorization: Bearer …` server-side; the site calls same-origin `/api`. The
+  WebSocket statistics path (step 7) is the one exception, by necessity.
 - For the Raspberry Pi kiosk, see `pi-kiosk.md` (point it at http://dashboard.home).
 - `stack/.env` is secret — it is gitignored in the repo; don't commit it.
