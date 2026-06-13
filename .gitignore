@@ -7,3 +7,7 @@ stack/.env
 .DS_Store
 *.swp
 Thumbs.db
+
+# Python bytecode
+__pycache__/
+*.pyc

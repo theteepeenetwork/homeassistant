@@ -44,6 +44,15 @@ export const CONFIG = {
     brightness: 0.55,       // 0..1 multiplier applied to the whole UI
   },
 
+  // ---- Solar history (Sigenergy portal) -------------------------------------
+  //  The Sigen cloud portal holds the real long history (back to install);
+  //  HA only has recent live data. Export the daily "Energy (kWh)" report from
+  //  the portal, run sigen-portal.py to produce this JSON, and the wallboard
+  //  shows true month-to-date / year-to-date generation + revenue. Static file
+  //  served same-origin by Caddy; refreshed on the slow stats timer. Set to
+  //  null to hide the Solar-to-date card.
+  solarHistoryUrl: 'data/solar-history.json',
+
   // ---- Locale / formatting --------------------------------------------------
   locale: 'en-GB',
   currency: 'GBP',

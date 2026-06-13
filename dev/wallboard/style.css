@@ -215,6 +215,21 @@ html, body {
 .budget-note { margin-top: auto; padding-top: 14px; font-size: 14px; color: var(--fg-mute); }
 .budget-note em { font-style: normal; color: var(--green); }
 
+/* ---- Solar to-date card (Sigen portal history) ---- */
+.card-solar { flex: none; }
+.solar-hist { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.sh-col { background: var(--bg-card-2); border-radius: 12px; padding: 14px 16px; }
+.sh-label { font-size: 14px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: .5px; }
+.sh-pv { font-size: 34px; font-weight: 800; color: var(--yellow); line-height: 1.1; margin-top: 2px; }
+.sh-pv-cap { font-size: 13px; color: var(--fg-mute); margin-bottom: 8px; }
+.sh-rows { display: flex; flex-direction: column; gap: 4px; }
+.sh-rows > div { display: flex; justify-content: space-between; font-size: 17px;
+                 border-top: 1px solid var(--line); padding-top: 4px; }
+.sh-rows span:first-child { color: var(--fg-dim); font-size: 15px; }
+.sh-credit { color: var(--green); font-weight: 700; }
+.sh-spend  { color: var(--amber); font-weight: 700; }
+.sh-empty  { color: var(--fg-mute); font-size: 16px; padding: 12px 2px; }
+
 /* ---- Heat-pump cost strip ---- */
 .hp-costs { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
 .hp-cost {

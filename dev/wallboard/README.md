@@ -17,10 +17,34 @@ dev/wallboard/
 ├── icons.js              # inline SVG weather icons (no network)
 ├── app.js                # clock, night-dim, daily-reload watchdog, forecast timer
 ├── vendor/               # (empty) local third-party libs would go here, never a CDN
+├── data/                 # generated static JSON (solar-history.json), served by Caddy
 ├── discover-entities.sh  # list/verify real HA entity ids on macserver
+├── sigen-stats.py        # live HA WebSocket pull: MTD/YTD ESS energy (stats API)
+├── sigen-portal.py       # parse Sigenergy portal exports -> report + solar-history.json
 ├── pi-kiosk-setup.sh     # one-shot Raspberry Pi kiosk installer
 └── pi-kiosk.md           # Pi kiosk docs (Wayland + X11)
 ```
+
+## Solar history (true MTD / YTD generation + revenue)
+
+HA only holds recent data, so true month/year-to-date solar comes from the
+**Sigenergy cloud portal**. Export the daily *Energy (kWh)* report (and/or the
+yearly summary) from the portal, then:
+
+```bash
+python3 dev/wallboard/sigen-portal.py --json dev/wallboard/data/solar-history.json stationData-*.xlsx
+```
+
+This prints a per-month / MTD / YTD table (generation, import/export, battery,
+the portal's Revenue £, and a grid cash-net at your Octopus rates) and writes
+`data/solar-history.json`. The wallboard's **Solar — to date** card reads that
+JSON (slow timer, cache-busted); `scp` it to the Pi/server alongside the site to
+refresh. Rates default to import £0.07 / export £0.15 — override with
+`--import-rate` / `--export-rate` or `SIGEN_IMPORT_RATE` / `SIGEN_EXPORT_RATE`.
+The portal's 5-minute power export is capped ~10k rows (~35 days); the daily and
+yearly exports go back to install, so use those for history. `sigen-stats.py` is
+the live alternative — it pulls MTD/YTD straight from HA's statistics WebSocket,
+but only covers the window HA has been recording.
 
 > **Heads-up on entity IDs.** This was built from the entity IDs in the brief.
 > The Ohme, Octopus, server-health and container IDs are confirmed; **Sigen
