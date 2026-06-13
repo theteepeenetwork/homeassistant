@@ -11,7 +11,7 @@
 
 import { CONFIG, ENTITIES } from './config.js';
 import * as ha from './ha.js';
-import { render, setForecast, setStats, statsQuery } from './ui.js';
+import { render, setForecast, setStats, setSolarHistory, statsQuery } from './ui.js';
 
 // Never let an uncaught error surface as a browser dialog on the wall.
 window.addEventListener('error', (e) => console.error('[wallboard] window error', e.error || e.message));
@@ -74,6 +74,23 @@ async function refreshStats() {
   render();
 }
 
+// ---- Solar history (slow refresh) -------------------------------------------
+//  Static JSON of true MTD/YTD generation + revenue from the Sigenergy portal,
+//  produced by sigen-portal.py. Same-origin file served by Caddy; absent file
+//  just leaves the "no data" hint. Cache-busted so a fresh export shows up.
+async function refreshSolarHistory() {
+  const url = CONFIG.solarHistoryUrl;
+  if (!url) return;
+  try {
+    const res = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    setSolarHistory(await res.json());
+    render();
+  } catch (e) {
+    console.warn('[wallboard] solar history fetch failed:', e && e.message);
+  }
+}
+
 // ---- Boot -------------------------------------------------------------------
 function boot() {
   tickClock();
@@ -90,6 +107,10 @@ function boot() {
   // Statistics (multi-period budget + heat-pump month cost), slow refresh.
   refreshStats();
   setInterval(refreshStats, CONFIG.statsRefreshMs);
+
+  // Solar history (Sigen portal MTD/YTD), slow refresh.
+  refreshSolarHistory();
+  setInterval(refreshSolarHistory, CONFIG.statsRefreshMs);
 
   // 1s housekeeping tick for clock / night-dim / watchdog (cheap, no leaks).
   setInterval(() => {

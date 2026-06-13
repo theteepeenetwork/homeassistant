@@ -23,6 +23,11 @@ let statsData = {};
 export function setStats(obj) { statsData = (obj && typeof obj === 'object') ? obj : {}; }
 function hasStats() { return Object.keys(statsData).length > 0; }
 
+// Solar history (Sigenergy portal) JSON, fetched on a slow timer by app.js.
+// Shape: { asOf, rates, periods: { mtd: {...}, ytd: {...} } } — see sigen-portal.py.
+let solarHistory = null;
+export function setSolarHistory(obj) { solarHistory = (obj && typeof obj === 'object') ? obj : null; }
+
 // ---- Period windows ---------------------------------------------------------
 //  All budget figures are aligned to COMPLETED days (grid cost is only final
 //  ~24h late), so every window ends at local midnight today (today excluded).
@@ -466,6 +471,50 @@ function renderBudget() {
   badge.textContent = liveStats ? 'live' : 'yesterday only';
 }
 
+// ---- Solar to-date (Sigenergy portal history) -------------------------------
+//  True month-to-date / year-to-date generation + revenue from the Sigen cloud
+//  portal (HA only has recent data). Fed from data/solar-history.json, produced
+//  by sigen-portal.py off the portal's daily "Energy (kWh)" export. Net grid is
+//  the portal kWh priced at the Octopus rates baked into the JSON (negative =
+//  earned). Degrades to a hint when the JSON is absent.
+function renderSolarHistory() {
+  const grid = $('solar-hist');
+  const badge = $('solar-hist-badge');
+  if (!grid || !badge) return;
+
+  const h = solarHistory;
+  const p = h && h.periods;
+  if (!p || (!p.mtd && !p.ytd)) {
+    badge.className = 'badge badge-warn';
+    badge.textContent = 'no data';
+    grid.innerHTML = '<div class="sh-empty">Run sigen-portal.py on a portal export to populate.</div>';
+    return;
+  }
+
+  badge.className = 'badge badge-ok';
+  badge.textContent = h.asOf ? `as of ${h.asOf}` : 'live';
+
+  const net = (v) => (v == null ? '—'
+    : v < -0.005 ? `+${fmtMoney(-v)}` : fmtMoney(v));
+  const netCls = (v) => (v == null ? '' : v < -0.005 ? 'sh-credit' : 'sh-spend');
+
+  const col = (per) => {
+    if (!per) return '';
+    return `<div class="sh-col">
+      <div class="sh-label">${escapeHtml(per.label || '')}</div>
+      <div class="sh-pv tnum">${fmtKwh(per.pv)}</div>
+      <div class="sh-pv-cap">generated</div>
+      <div class="sh-rows tnum">
+        <div><span>Export</span><span>${fmtKwh(per.export)}</span></div>
+        <div><span>Revenue</span><span class="sh-credit">${per.revenue == null ? '—' : fmtMoney(per.revenue)}</span></div>
+        <div><span>Grid net</span><span class="${netCls(per.netGridCost)}">${net(per.netGridCost)}</span></div>
+      </div>
+    </div>`;
+  };
+
+  grid.innerHTML = col(p.mtd) + col(p.ytd);
+}
+
 const toNum = (v) => (v == null || v === '' || Number.isNaN(Number(v)) ? null : Number(v));
 const fmtKwhOrBlank = (n) => (n == null ? '' : fmtKwh(n));
 
@@ -532,5 +581,6 @@ export function render() {
   safe('ev',      renderEV);
   safe('climate', renderClimate);
   safe('budget',  renderBudget);
+  safe('solar',   renderSolarHistory);
   safe('footer',  renderFooter);
 }
