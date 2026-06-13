@@ -7,7 +7,7 @@
 //  Change an id, the UI follows — no other code edits required.
 //
 //  How to confirm the real ids on your server (Caddy proxy injects the token):
-//      curl -s http://wallboard.home/api/states | jq -r '.[].entity_id' | sort
+//      curl -s http://dashboard.home/api/states | jq -r '.[].entity_id' | sort
 //  ...or run ./discover-entities.sh on macserver. See README.md.
 //
 //  Entity ids marked "CONFIRMED" came from the build brief and are live.

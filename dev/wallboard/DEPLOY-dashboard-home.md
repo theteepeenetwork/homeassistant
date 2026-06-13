@@ -2,7 +2,8 @@
 
 All the file prep is done in this Cowork project (source of truth). What's left
 runs on the server — the sandbox can't reach the LAN/Tailscale, so run these
-from your MacBook Air. The `macserver` SSH alias / `markp@192.168.1.190` both work.
+from your MacBook Air. Use `markp@192.168.1.190` (user **markp**); the `macserver`
+SSH alias logs in as `markpearson`, which is the wrong account.
 
 Already done for you in the project:
 - `dev/wallboard/` — the static site (copied from the repo).
@@ -27,8 +28,8 @@ HA_TOKEN=<paste-the-token>
 ## 3. Push everything to the server
 From the project root (`Documents/Claude/Projects/macserver`):
 ```bash
-scp -r dev/wallboard markp@192.168.1.190:~/dev/        # static site -> ~/dev/wallboard
-scp -r stack/caddy stack/docker-compose.yml stack/.env markp@192.168.1.190:~/stack/
+rsync -av dev/wallboard/ markp@192.168.1.190:~/dev/wallboard/   # static site (+ data/solar-history.json)
+rsync -av stack/caddy stack/docker-compose.yml stack/.env markp@192.168.1.190:~/stack/
 ```
 
 ## 4. Reload Caddy on the server

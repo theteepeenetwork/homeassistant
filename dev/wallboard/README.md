@@ -38,8 +38,8 @@ python3 dev/wallboard/sigen-portal.py --json dev/wallboard/data/solar-history.js
 This prints a per-month / MTD / YTD table (generation, import/export, battery,
 the portal's Revenue £, and a grid cash-net at your Octopus rates) and writes
 `data/solar-history.json`. The wallboard's **Solar — to date** card reads that
-JSON (slow timer, cache-busted); `scp` it to the Pi/server alongside the site to
-refresh. Rates default to the confirmed Octopus tariff — import £0.069 (IOG
+JSON (slow timer, cache-busted); `rsync` it to the server alongside the site to
+refresh (`rsync -av dev/wallboard/data/ markp@192.168.1.190:~/dev/wallboard/data/`). Rates default to the confirmed Octopus tariff — import £0.069 (IOG
 off-peak; ~99% of import is off-peak) / export £0.12 (flat Outgoing) — override
 with `--import-rate` / `--export-rate` or `SIGEN_IMPORT_RATE` / `SIGEN_EXPORT_RATE`.
 The portal's 5-minute power export is capped ~10k rows (~35 days); the daily and
@@ -58,8 +58,8 @@ but only covers the window HA has been recording.
 
 ## 1. Deploy (on macserver)
 
-The convention (from the brief): edit in the Cowork project, `scp` to the
-server, `docker compose up -d`.
+The convention (from the brief): edit in the Cowork project, `rsync` to the
+server (user `markp` at `192.168.1.190`), `docker compose up -d`.
 
 ### a. Set the token (never committed)
 
@@ -78,7 +78,7 @@ echo 'HA_TOKEN=<paste-token>' >> .env   # or edit .env
 
 Merge the two snippets in this repo into your **real** stack files:
 
-- **`stack/caddy/Caddyfile`** — add the `http://wallboard.home { … }` block.
+- **`stack/caddy/Caddyfile`** — add the `http://dashboard.home { … }` block.
   It serves `/srv/wallboard` and proxies `/api/*` to `http://homeassistant:8123`
   with `header_up Authorization "Bearer {env.HA_TOKEN}"`.
 - **`stack/docker-compose.yml`** — on the `caddy` service add:
@@ -90,27 +90,28 @@ Merge the two snippets in this repo into your **real** stack files:
 
 ### c. DNS
 
-Add `wallboard.home` to Pi-hole pointing at `192.168.1.190` (it already
+Add `dashboard.home` to Pi-hole pointing at `192.168.1.190` (it already
 resolves `*.home` there, so a normal A record / wildcard covers it).
 
 ### d. Push the site and restart Caddy
 
 ```bash
-# from the Cowork project on your dev machine:
-scp -r dev/wallboard macserver:~/dev/        # -> ~/dev/wallboard on the server
-ssh macserver
+# from the Cowork project on your dev machine (user markp; the `macserver` SSH
+# alias logs in as the wrong account, so use the explicit host):
+rsync -av dev/wallboard/ markp@192.168.1.190:~/dev/wallboard/   # -> ~/dev/wallboard (+ data/)
+ssh markp@192.168.1.190
 cd ~/stack && docker compose up -d caddy      # reload Caddy with the new config + mount
 ```
 
 ### e. Verify
 
 ```bash
-curl -I http://wallboard.home                 # 200, serves index.html
-curl -s http://wallboard.home/api/states | head   # proxied HA states (token injected)
+curl -I http://dashboard.home                 # 200, serves index.html
+curl -s http://dashboard.home/api/states | head   # proxied HA states (token injected)
 ./~/dev/wallboard/discover-entities.sh        # confirm entity ids
 ```
 
-Open `http://wallboard.home` in a browser. Then set up the Pi: see
+Open `http://dashboard.home` in a browser. Then set up the Pi: see
 **`pi-kiosk.md`**.
 
 ---
