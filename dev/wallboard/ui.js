@@ -446,8 +446,10 @@ function renderBudget() {
     }
 
     // car: HA stats → live yesterday → live month cost-tracker (month column)
+    //      → yearly utility_meter on the Ohme energy sensor (year column)
     let carKwh = statSum(ST.carKwh, w) ?? (yest ? live.carKwh : null);
     if (carKwh == null && key === 'month') carKwh = toNum(ha.getAttr(B.carMonth, 'total_consumption'));
+    if (carKwh == null && key === 'year' && B.carYear) carKwh = toNum(ha.getState(B.carYear));
     const carCost  = (offPeak != null && carKwh != null) ? carKwh * Number(offPeak) : null;
     const standing = w.days > 0 ? standingPerDay * w.days : (yest ? standingPerDay : null);
     const netIncl = (importCost != null && exportCost != null)

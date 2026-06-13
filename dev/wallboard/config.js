@@ -122,6 +122,7 @@ export const ENTITIES = {
     // Car spend: off-peak £ = cost-tracker total_consumption (kWh) x off-peak rate.
     carMonth:       'sensor.octopus_energy_cost_tracker_ev_charger_month',  // read total_consumption attr
     carToday:       'sensor.octopus_energy_cost_tracker_ev_charger',        // read total_consumption attr (daily car proxy for net excl. car)
+    carYear:        'sensor.drive_ohme_home_pro_car_charging_yearly',       // state = kWh YTD (yearly utility_meter on the Ohme energy sensor)
     // Generation (PV daily energy) — Sigen LIVE 2026-06-09.
     genDailyKwh:    'sensor.sigen_plant_daily_pv_energy',  // kWh today
   },
